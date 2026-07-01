@@ -1,18 +1,43 @@
 # Sepia
 
+![Sepia banner](assets/banner.jpg)
+
 UI changes are hard to review from a PR description alone. Screenshots can miss the flow, and recorded videos are often made by hand, stored in the repo, or hard to reproduce.
 
 Sepia helps you make a repeatable browser demo for a PR. You describe the path through the app in a small TOML file, run Sepia, inspect the result, and optionally add the demo link to a GitHub PR.
 
 It writes generated files outside the project you are reviewing by default, usually under `~/Downloads/sepia/`.
 
-## Install for development
+## Install
+
+Install globally with Pixi:
+
+```bash
+pixi global install -c https://prefix.dev/tim -c conda-forge sepia
+sepia --help
+```
+
+Package page: <https://prefix.dev/channels/tim/packages/sepia>
+
+To install from a local checkout instead:
+
+```bash
+pixi global install --path .
+```
+
+Reinstall after local changes:
+
+```bash
+pixi global install --path . --force-reinstall
+```
+
+For development in this repo:
 
 ```bash
 pixi install
 ```
 
-Useful commands:
+Useful development commands:
 
 ```bash
 pixi run sepia --help
@@ -20,7 +45,7 @@ pixi run test
 pixi run check
 ```
 
-Sepia expects `agent-browser` and `ffmpeg` to be available. The Pixi environment provides both.
+Sepia expects `agent-browser` and `ffmpeg` to be available. The Pixi environment and package dependencies provide both.
 
 ## Basic workflow
 
@@ -167,6 +192,20 @@ Agent rules:
 - Run `sepia inspect` after recording.
 - Ask the human what to change if the demo is wrong or unclear.
 - Only update a PR after the human approves the inspected result.
+
+After finishing a PR, you can ask an agent something like:
+
+```text
+Use Sepia to capture a short browser demo for this PR.
+
+The app is already running at <URL>. Show the main user-facing change from this PR, keep the script readable, and write any generated demo files outside this repository. After recording, open the Sepia inspection page and tell me what to review. Do not update the PR until I approve the demo.
+```
+
+If you want the agent to update the PR too:
+
+```text
+The Sepia demo looks good. Update PR <NUMBER> in <OWNER/REPO> with the demo. Use the interactive attach flow if you need me to upload the MP4 to GitHub first.
+```
 
 ## Development notes
 
