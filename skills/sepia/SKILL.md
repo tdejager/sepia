@@ -1,6 +1,6 @@
 ---
 name: sepia
-description: Capture browser UI demos as color-correct MP4 videos for PR evidence without committing binary assets. Use when an agent needs to script browser interactions, inspect the result, iterate with the human, and update a PR with a local demo artifact.
+description: Capture browser change videos as color-correct MP4s for PR evidence without committing binary assets. Use when an agent needs to script browser interactions, inspect the result, iterate with the human, and update a PR with a local video artifact.
 ---
 
 # Sepia
@@ -9,17 +9,17 @@ Use Sepia when you need browser-based PR evidence as a video.
 
 ## Rules
 
-- Never write generated demo assets into the target source repository.
+- Never write generated recording assets into the target source repository.
 - Prefer output under `~/Downloads/sepia/`.
 - Use named browser sessions.
-- Inspect the generated demo before reporting success.
-- Ask the human what should change if the demo is not right.
+- Inspect the generated video before reporting success.
+- Ask the human what should change if the video is not right.
 - Only update the PR after the human accepts the inspected output.
 
 ## Workflow
 
 1. Start the application under test.
-2. Write a readable `demo.toml` outside the target repo or in a safe examples area of the Sepia repo.
+2. Write a readable Sepia TOML script, such as `demo.toml`, outside the target repo or in a safe examples area of the Sepia repo.
 3. Run:
 
    ```bash

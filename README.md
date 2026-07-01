@@ -2,9 +2,9 @@
 
 # Sepia
 
-Sepia records short, repeatable browser demos for PRs. You describe the path through your app, Sepia captures a color-correct MP4, and you can add the result to a GitHub PR.
+Sepia records short, repeatable browser change videos for PRs. You describe the path through your app, Sepia captures a color-correct MP4, and you can add the result to a GitHub PR.
 
-Generated files go to a separate Sepia output directory by default, so demo assets do not end up in the repo you are reviewing.
+Generated files go to a separate Sepia output directory by default, so recording assets do not end up in the repo you are reviewing.
 
 ## Install
 
@@ -28,7 +28,7 @@ pixi global install --git https://github.com/tdejager/sepia.git --branch main
 Most Sepia runs are easiest through an agent:
 
 1. Start the app you want to record.
-2. Ask the agent to capture the PR demo.
+2. Ask the agent to capture the PR video.
 3. Review the page opened by `sepia inspect`.
 4. Approve changes, or ask the agent to adjust the script and rerun.
 5. When it looks good, ask the agent to add it to the PR.
@@ -36,15 +36,15 @@ Most Sepia runs are easiest through an agent:
 Example prompt:
 
 ```text
-Use Sepia to capture a short browser demo for this PR.
+Use Sepia to capture a short browser change video for this PR.
 
-The app is already running at <URL>. Show the main user-facing change from this PR, keep the script readable, and write any generated demo files outside this repository. After recording, open the Sepia inspection page and tell me what to review. Do not update the PR until I approve the demo.
+The app is already running at <URL>. Show the main user-facing change from this PR, keep the script readable, and write any generated recording files outside this repository. After recording, open the Sepia inspection page and tell me what to review. Do not update the PR until I approve the video.
 ```
 
-If the demo looks good:
+If the video looks good:
 
 ```text
-The Sepia demo looks good. Update PR <NUMBER> in <OWNER/REPO> with the demo. Use the interactive attach flow if you need me to upload the MP4 to GitHub first.
+The Sepia video looks good. Update PR <NUMBER> in <OWNER/REPO> with it. Use the interactive attach flow if you need me to upload the MP4 to GitHub first.
 ```
 
 Agents can install the bundled Sepia skill with:
@@ -55,7 +55,7 @@ sepia skill install
 
 Agent-facing rules live in [`skills/sepia/SKILL.md`](skills/sepia/SKILL.md).
 
-## Add the demo to a PR
+## Add the video to a PR
 
 GitHub shows uploaded videos inline when they use a `github.com/user-attachments/assets/...` URL. Sepia helps with that flow:
 
@@ -83,10 +83,10 @@ If `--repo` or `--pr` are omitted, Sepia tries to read them from the current dir
 <summary>Run Sepia manually</summary>
 
 1. Start the app you want to record.
-2. Write a demo file that opens the app and performs the important actions.
-3. Run the demo.
+2. Write a Sepia TOML file that opens the app and performs the important actions.
+3. Run the recording.
 4. Inspect the output.
-5. If it looks right, use it in the PR.
+5. If the video looks right, use it in the PR.
 
 Example:
 
@@ -114,13 +114,13 @@ Sepia tracks the latest session, so `sepia inspect` can open the most recent run
 </details>
 
 <details>
-<summary>Write a demo file</summary>
+<summary>Write a script file</summary>
 
-A demo file is TOML. Keep it readable: name the steps after what the reviewer should notice.
+A Sepia script is TOML. Keep it readable: name the steps after what the reviewer should notice.
 
 ```toml
 name = "windowed-browse"
-description = "Windowed package and advisory browse demo"
+description = "Windowed package and advisory browse"
 url = "http://localhost:3001"
 session = "basilisk-demo"
 
@@ -175,7 +175,7 @@ Open a specific run:
 sepia inspect <session-dir>
 ```
 
-Use this before sharing the video. It is easier to fix the demo and rerun than to explain a confusing PR video.
+Use this before sharing the video. It is easier to fix the script and rerun than to explain a confusing PR video.
 
 </details>
 
