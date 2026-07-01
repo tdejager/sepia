@@ -1,0 +1,31 @@
+[workspace]
+preview = ["pixi-build"]
+channels = ["https://prefix.dev/conda-forge"]
+platforms = ["osx-arm64", "osx-64", "linux-64"]
+
+[dependencies]
+sepia = { path = "." }
+ffmpeg = "*"
+
+[tasks]
+build = "cargo build"
+test = "cargo test"
+fmt = "cargo fmt --check"
+clippy = "cargo clippy --all-targets -- -D warnings"
+check = { depends-on = ["fmt", "clippy", "test"] }
+sepia = "cargo run --"
+run-example = "sepia run examples/basilisk-windowed-browse.toml"
+inspect = "sepia inspect"
+package-local = "pixi publish --target-dir dist/conda"
+
+[package]
+name = "sepia"
+version = "0.1.0"
+
+[package.build.backend]
+name = "pixi-build-rust"
+version = "0.*"
+channels = ["https://prefix.dev/conda-forge"]
+
+[package.run-dependencies]
+ffmpeg = "*"

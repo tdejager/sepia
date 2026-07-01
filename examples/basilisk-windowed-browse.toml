@@ -1,0 +1,52 @@
+name = "windowed-browse"
+description = "Windowed package and advisory browse demo"
+url = "http://localhost:3001"
+session = "basilisk-demo"
+
+[capture]
+output_fps = 24
+default_hold_ms = 700
+default_action_ms = 400
+
+[[steps]]
+name = "Initial packages page"
+wait_ms = 1000
+hold_ms = 1200
+screenshot = true
+
+[[steps]]
+name = "Scroll package list"
+scroll = { selector = ".min-h-0.flex-1.overflow-auto.pr-2", pixels = 1200 }
+duration_ms = 1800
+frames = 36
+screenshot = true
+
+[[steps]]
+name = "Filter checked packages"
+eval = "[...document.querySelectorAll('button')].find((el) => el.textContent?.includes('Checked'))?.click()"
+hold_ms = 900
+screenshot = true
+
+[[steps]]
+name = "Search for zlib"
+fill = { selector = "input[role=\"combobox\"]", text = "zlib" }
+hold_ms = 300
+screenshot = false
+
+[[steps]]
+name = "Close package search suggestions"
+eval = "const el = document.activeElement; el?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', keyCode: 27, which: 27, bubbles: true })); if (el instanceof HTMLElement) el.blur();"
+hold_ms = 800
+screenshot = true
+
+[[steps]]
+name = "Open advisories"
+eval = "[...document.querySelectorAll('a')].find((el) => el.textContent?.includes('Advisories'))?.click()"
+hold_ms = 900
+screenshot = true
+
+[[steps]]
+name = "Filter unconfirmed advisories"
+eval = "[...document.querySelectorAll('button')].find((el) => el.textContent?.includes('Unconfirmed'))?.click()"
+hold_ms = 1200
+screenshot = true

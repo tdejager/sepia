@@ -1,0 +1,29 @@
+[package]
+name = "sepia"
+version = "0.1.0"
+edition = "2024"
+description = "Agent-native browser demo capture for PR evidence"
+license = "MIT"
+repository = "https://github.com/tdejager/sepia"
+
+[dependencies]
+anyhow = "1.0"
+arboard = "3.6"
+base64 = "0.22"
+chrono = { version = "0.4", features = ["serde"] }
+clap = { version = "4.5", features = ["derive"] }
+directories = "6.0"
+html-escape = "0.2"
+regex = "1.12"
+reqwest = { version = "0.13.4", features = ["json", "multipart"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+skill = "0.8.3"
+tempfile = "3.15"
+tokio = { version = "1.43", features = ["macros", "rt-multi-thread", "time"] }
+toml = "0.9"
+urlencoding = "2.1"
+
+[dev-dependencies]
+assert_cmd = "2.0"
+predicates = "3.1"
