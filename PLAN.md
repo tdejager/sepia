@@ -128,8 +128,8 @@ screenshot = true
 - [x] Unit test upload content-type detection.
 - [ ] Unit test skill install target selection.
 - [x] Integration test `sepia run` with fake `agent-browser` and fake `ffmpeg` on `PATH`.
-- [ ] Integration test `sepia inspect` with fake opener.
-- [ ] Integration test `sepia pr --dry-run` with no GitHub calls.
+- [x] Integration test `sepia inspect` with fake opener.
+- [x] Integration test `sepia pr --dry-run` with no GitHub calls.
 - [ ] HTTP-mock PR create/update/upload behavior.
 - [x] `pixi run check` runs fmt, clippy, and tests.
 
