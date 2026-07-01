@@ -2,7 +2,7 @@
 
 # Sepia
 
-Sepia records short, repeatable browser change videos for PRs. You describe the path through your app, Sepia captures a MP4, and you can add the result to a GitHub PR.
+Sepia records short, repeatable browser change videos for PRs. You describe the path through your app, Sepia captures an MP4, and you can add the result to a GitHub PR.
 
 Generated files go to a separate Sepia output directory by default, so recording assets do not end up in the repo you are reviewing.
 
