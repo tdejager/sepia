@@ -1,24 +1,10 @@
 # Sepia
 
-Sepia is an agent-native browser demo capture tool for PR evidence. It produces color-correct MP4 demos by driving browser actions, capturing PNG frames, and assembling those frames with FFmpeg. Generated artifacts are written outside target source repositories by default.
+UI changes are hard to review from a PR description alone. Screenshots can miss the flow, and recorded videos are often made by hand, stored in the repo, or hard to reproduce.
 
-## Status
+Sepia helps you make a repeatable browser demo for a PR. You describe the path through the app in a small TOML file, run Sepia, inspect the result, and optionally add the demo link to a GitHub PR.
 
-Implemented:
-
-- `sepia run <demo.toml>`
-- `sepia inspect [session-dir]`
-- `sepia pr --dry-run`
-- `sepia skill install/list/remove`
-- pixi-build packaging metadata
-- timeline granularity for smooth scrolls and readable holds
-- automated unit tests and a fake `agent-browser`/`ffmpeg` integration test
-
-Still planned:
-
-- repo-contents fallback provider
-- mock-server tests for GitHub upload/comment APIs
-- deeper skill install tests with isolated home directories
+It writes generated files outside the project you are reviewing by default, usually under `~/Downloads/sepia/`.
 
 ## Install for development
 
@@ -34,25 +20,35 @@ pixi run test
 pixi run check
 ```
 
-## Capture a demo
+Sepia expects `agent-browser` and `ffmpeg` to be available. The Pixi environment provides both.
 
-Start the application you want to record, then run:
+## Basic workflow
+
+1. Start the app you want to record.
+2. Write a demo file that opens the app and performs the important actions.
+3. Run the demo.
+4. Inspect the output.
+5. If it looks right, use it in the PR.
+
+Example:
 
 ```bash
 pixi run sepia run examples/basilisk-windowed-browse.toml
+pixi run sepia inspect
 ```
 
-Sepia writes artifacts under `~/Downloads/sepia/<timestamp-name>/` unless `--output-root` is supplied:
+Sepia writes a session directory like this:
 
 ```txt
-frames/
-steps/
-demo.mp4
-timeline.json
-timeline.md
-summary.md
-inspect.html
-pr-comment.md
+~/Downloads/sepia/<timestamp-name>/
+  demo.mp4
+  inspect.html
+  summary.md
+  timeline.md
+  timeline.json
+  pr-comment.md
+  frames/
+  steps/
 ```
 
 It also updates:
@@ -61,59 +57,11 @@ It also updates:
 ~/Downloads/sepia/latest.json
 ```
 
-## Inspect the latest demo
+So `sepia inspect` can open the most recent run without another path.
 
-```bash
-pixi run sepia inspect
-```
+## Demo files
 
-Or inspect a specific session:
-
-```bash
-pixi run sepia inspect ~/Downloads/sepia/<session>
-```
-
-## Update a PR
-
-Sepia's PR flow is optimized for GitHub's inline video renderer. GitHub only renders videos inline from `https://github.com/user-attachments/assets/...` URLs, so Sepia asks the human to upload the MP4 through the GitHub web UI.
-
-Interactive flow:
-
-```bash
-pixi run sepia pr --attach --repo prefix-dev/basilisk --pr 18
-```
-
-This will:
-
-1. copy the latest `demo.mp4` path to your clipboard,
-2. reveal the file in Finder on macOS,
-3. open the PR page when `--repo` and `--pr` are supplied,
-4. ask you to paste the resulting GitHub `user-attachments` URL,
-5. place the Sepia block at the top of the PR description while preserving the previous description below it.
-
-If you already have the uploaded URL, skip the prompt:
-
-```bash
-pixi run sepia pr --repo prefix-dev/basilisk --pr 18 --video-url https://github.com/user-attachments/assets/...
-```
-
-Preview the markdown without updating GitHub:
-
-```bash
-pixi run sepia pr --dry-run --video-url https://github.com/user-attachments/assets/...
-```
-
-If `--repo` or `--pr` are omitted, Sepia uses `gh repo view` and `gh pr view` from the current working directory. Authentication uses `GH_TOKEN`, `GITHUB_TOKEN`, or `gh auth token`.
-
-Sepia searches for this marker and updates the existing block when present, avoiding duplicate PR-description sections:
-
-```md
-<!-- sepia:pr-demo:start -->
-```
-
-## Demo config
-
-Sepia configs are TOML and should be readable by humans and agents.
+A demo file is TOML. Keep it readable: name the steps after what the reviewer should notice.
 
 ```toml
 name = "windowed-browse"
@@ -127,9 +75,9 @@ default_hold_ms = 700
 default_action_ms = 400
 
 [[steps]]
-name = "Search for zlib"
-fill = { selector = "input[role=\"combobox\"]", text = "zlib" }
-hold_ms = 1000
+name = "Initial packages page"
+wait_ms = 1000
+hold_ms = 1200
 screenshot = true
 
 [[steps]]
@@ -138,48 +86,99 @@ scroll = { selector = ".package-list", pixels = 900 }
 duration_ms = 1600
 frames = 32
 screenshot = true
+
+[[steps]]
+name = "Search for zlib"
+fill = { selector = "input[role=\"combobox\"]", text = "zlib" }
+hold_ms = 1000
+screenshot = true
 ```
 
-Important timeline fields:
+Supported step actions:
 
-- `output_fps`: final MP4 frame rate.
-- `hold_ms`: how long an important state remains visible.
-- `duration_ms`: intended duration of animated actions.
-- `frames`: screenshot granularity for animated actions like scrolling.
+- `wait_ms`: wait before capturing the state.
+- `fill`: fill an input matched by a selector.
+- `scroll`: scroll an element matched by a selector.
+- `eval`: run JavaScript in the page.
 
-The MP4 is constant-frame-rate, while each step can choose its own capture granularity.
+Each step should use at most one action. Use `hold_ms`, `duration_ms`, and `frames` when the viewer needs more time to see what happened.
 
-## Agent skill
+## Inspect a run
 
-Install the bundled Sepia skill globally for detected agents:
+Open the latest run:
+
+```bash
+pixi run sepia inspect
+```
+
+Open a specific run:
+
+```bash
+pixi run sepia inspect ~/Downloads/sepia/<session>
+```
+
+Use this before sharing the video. It is easier to fix the demo file and rerun than to explain a confusing demo in the PR.
+
+## Add the demo to a PR
+
+GitHub only displays uploaded videos inline when they use a `github.com/user-attachments/assets/...` URL. Sepia therefore asks you to upload the generated MP4 in the browser, then paste the resulting URL.
+
+Interactive flow:
+
+```bash
+pixi run sepia pr --attach --repo OWNER/REPO --pr 123
+```
+
+This will:
+
+1. copy the latest `demo.mp4` path to your clipboard,
+2. reveal the file in Finder on macOS,
+3. open the PR page when `--repo` and `--pr` are supplied,
+4. ask for the uploaded GitHub video URL,
+5. update the PR description with a Sepia block.
+
+If you already have the uploaded URL:
+
+```bash
+pixi run sepia pr --repo OWNER/REPO --pr 123 --video-url https://github.com/user-attachments/assets/...
+```
+
+Preview the markdown without changing GitHub:
+
+```bash
+pixi run sepia pr --dry-run --video-url https://github.com/user-attachments/assets/...
+```
+
+If `--repo` or `--pr` are omitted, Sepia tries to read them from the current directory using the GitHub CLI. Authentication uses `GH_TOKEN`, `GITHUB_TOKEN`, or `gh auth token`.
+
+## Instructions for LLM agents
+
+Install the bundled skill if your agent supports skills:
 
 ```bash
 pixi run sepia skill install
 ```
 
-Install for a specific agent id:
+Agent rules:
 
-```bash
-pixi run sepia skill install --agent pi
-```
+- Do not write generated demo assets into the target source repo.
+- Prefer `~/Downloads/sepia/` or another output directory outside the repo.
+- Use a named browser session.
+- Run `sepia inspect` after recording.
+- Ask the human what to change if the demo is wrong or unclear.
+- Only update a PR after the human approves the inspected result.
 
-The skill tells agents to capture demos outside target repos, inspect results, iterate with the human, and only update PRs after approval.
-
-## Packaging
-
-Build a local conda package with pixi-build:
-
-```bash
-pixi run package-local
-```
-
-Publishing to a personal prefix.dev channel is planned after the first accepted real demo.
-
-## Version control
+## Development notes
 
 This repo uses Jujutsu:
 
 ```bash
 jj status
 jj diff
+```
+
+Build and test:
+
+```bash
+pixi run check
 ```
