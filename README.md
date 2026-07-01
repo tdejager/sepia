@@ -6,7 +6,7 @@ UI changes are hard to review from a PR description alone. Screenshots can miss 
 
 Sepia helps you make a repeatable browser demo for a PR. You describe the path through the app in a small TOML file, run Sepia, inspect the result, and optionally add the demo link to a GitHub PR.
 
-It writes generated files outside the project you are reviewing by default, usually under `~/Downloads/sepia/`.
+It writes generated files to a separate Sepia output directory by default, so demo artifacts do not end up in the project you are reviewing.
 
 ## Install
 
@@ -62,10 +62,10 @@ pixi run sepia run examples/basilisk-windowed-browse.toml
 pixi run sepia inspect
 ```
 
-Sepia writes a session directory like this:
+Sepia prints the session directory when the run finishes. It contains:
 
 ```txt
-~/Downloads/sepia/<timestamp-name>/
+<session-dir>/
   demo.mp4
   inspect.html
   summary.md
@@ -76,13 +76,7 @@ Sepia writes a session directory like this:
   steps/
 ```
 
-It also updates:
-
-```txt
-~/Downloads/sepia/latest.json
-```
-
-So `sepia inspect` can open the most recent run without another path.
+Sepia also tracks the latest session, so `sepia inspect` can open the most recent run without another path. Use `--output-root <dir>` if you want to choose where sessions are written.
 
 ## Demo files
 
@@ -139,7 +133,7 @@ pixi run sepia inspect
 Open a specific run:
 
 ```bash
-pixi run sepia inspect ~/Downloads/sepia/<session>
+pixi run sepia inspect <session-dir>
 ```
 
 Use this before sharing the video. It is easier to fix the demo file and rerun than to explain a confusing demo in the PR.
@@ -187,7 +181,7 @@ pixi run sepia skill install
 Agent rules:
 
 - Do not write generated demo assets into the target source repo.
-- Prefer `~/Downloads/sepia/` or another output directory outside the repo.
+- Use an output directory outside the repo.
 - Use a named browser session.
 - Run `sepia inspect` after recording.
 - Ask the human what to change if the demo is wrong or unclear.
