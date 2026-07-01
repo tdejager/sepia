@@ -13,14 +13,14 @@ Sepia is an agent-native PR demo capture tool. It records browser UI evidence as
 
 ## MVP command surface
 
-- [ ] `sepia run demo.toml` captures a scripted browser demo.
-- [ ] `sepia inspect` opens the latest capture.
-- [ ] `sepia inspect <session-dir>` opens a specific capture.
-- [ ] `sepia pr --dry-run` generates PR markdown without network writes.
+- [x] `sepia run demo.toml` captures a scripted browser demo.
+- [x] `sepia inspect` opens the latest capture.
+- [x] `sepia inspect <session-dir>` opens a specific capture.
+- [x] `sepia pr --dry-run` generates PR markdown without network writes.
 - [x] `sepia pr --attach` updates a marked block at the top of the PR description.
-- [ ] `sepia skill install` installs the bundled skill globally using the Rust `skill` crate.
-- [ ] `sepia skill list` lists installed skills.
-- [ ] `sepia skill remove` removes the bundled skill.
+- [x] `sepia skill install` installs the bundled skill globally using the Rust `skill` crate.
+- [x] `sepia skill list` lists installed skills.
+- [x] `sepia skill remove` removes the bundled skill.
 
 ## Pixi and packaging
 
@@ -29,7 +29,7 @@ Sepia is an agent-native PR demo capture tool. It records browser UI evidence as
 - [x] Add pixi-build Rust package metadata.
 - [x] Add `ffmpeg` as runtime dependency.
 - [x] Add local build/test/check tasks.
-- [ ] Verify local conda package build with `pixi publish --target-dir dist/conda`.
+- [x] Verify local conda package build with `pixi publish --target-dir dist/conda`.
 - [ ] Publish to a personal prefix.dev channel.
 
 ## Architecture
@@ -43,10 +43,10 @@ Sepia is an agent-native PR demo capture tool. It records browser UI evidence as
 - [x] `TimelineCompiler` abstraction.
   - [x] Compile human config steps into explicit frame plans.
   - [x] Allow per-step granularity, duration, holds, and explicit frame counts.
-- [ ] `ArtifactUploader` abstraction.
-  - [ ] `DryRunUploader`.
-  - [ ] `GitHubUserAttachmentsUploader`.
-  - [ ] `GitHubRepoContentsUploader` fallback.
+- [x] `ArtifactUploader` abstraction.
+  - [x] `DryRunUploader`.
+  - [x] `GitHubUserAttachmentsUploader`.
+  - [x] `GitHubRepoContentsUploader` fallback.
 - [ ] `PrCommentStore` abstraction.
   - [ ] Find existing Sepia marker comment.
   - [ ] Update if present, create if missing.
@@ -112,10 +112,11 @@ screenshot = true
 
 - [x] Bundle `skills/sepia/SKILL.md` into the binary.
 - [x] Use the Rust `skill` crate for native global install.
-- [ ] Default to detected installed agents.
-- [ ] Support explicit `--agent` filters.
+- [x] Default to detected installed agents.
+- [x] Support explicit `--agent` filters.
 - [x] Use copy mode for embedded skill install.
-- [ ] Test with temp `HOME`/XDG paths only.
+- [x] Test with temp `HOME`/XDG paths only.
+- [x] Suggest `sepia skill install` when detected agents are missing the bundled skill.
 
 ## Automated tests
 
@@ -126,7 +127,7 @@ screenshot = true
 - [x] Unit test inspect HTML rendering.
 - [x] Unit test PR markdown rendering and marker detection.
 - [x] Unit test upload content-type detection.
-- [ ] Unit test skill install target selection.
+- [x] Unit test skill install target selection.
 - [x] Integration test `sepia run` with fake `agent-browser` and fake `ffmpeg` on `PATH`.
 - [x] Integration test `sepia inspect` with fake opener.
 - [x] Integration test `sepia pr --dry-run` with no GitHub calls.
@@ -135,7 +136,7 @@ screenshot = true
 
 ## First acceptance target
 
-- [ ] From a Basilisk dev server, run:
+- [x] From a Basilisk dev server, run:
 
 ```bash
 sepia run examples/basilisk-windowed-browse.toml
@@ -143,5 +144,5 @@ sepia inspect
 ```
 
 - [ ] Confirm the MP4 has accurate colors and readable scroll/action pacing.
-- [ ] Run `sepia pr --dry-run` and review generated markdown.
+- [x] Run `sepia pr --dry-run` and review generated markdown.
 - [ ] Run `sepia pr` only after human approval.

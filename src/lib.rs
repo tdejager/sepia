@@ -9,3 +9,4 @@ pub mod runner;
 pub mod session;
 pub mod skill_installer;
 pub mod timeline;
+pub mod uploader;

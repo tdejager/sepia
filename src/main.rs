@@ -19,7 +19,9 @@ use sepia::{
     session::{SessionPaths, default_output_root, read_latest},
     skill_installer::{
         SkillInstallRequest, install_embedded_skill, list_installed_skills, remove_embedded_skill,
+        sepia_skill_install_tip,
     },
+    uploader::{ArtifactUploader, DryRunUploader},
 };
 
 #[derive(Debug, Parser)]
@@ -125,6 +127,9 @@ struct SkillRemoveArgs {
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
+    if !matches!(cli.command, Command::Skill(_)) {
+        maybe_print_skill_install_tip().await;
+    }
     match cli.command {
         Command::Run(args) => run(args)?,
         Command::Inspect(args) => inspect(args)?,
@@ -132,6 +137,12 @@ async fn main() -> Result<()> {
         Command::Skill(args) => skill(args).await?,
     }
     Ok(())
+}
+
+async fn maybe_print_skill_install_tip() {
+    if let Some(tip) = sepia_skill_install_tip().await {
+        eprintln!("{tip}");
+    }
 }
 
 fn run(args: RunArgs) -> Result<()> {
@@ -183,6 +194,8 @@ async fn pr(args: PrArgs) -> Result<()> {
             args.repo.as_deref(),
             args.pr,
         )?)
+    } else if args.dry_run {
+        Some(DryRunUploader.upload(&metadata.video).await?.url)
     } else {
         None
     };
