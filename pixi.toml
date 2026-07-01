@@ -6,6 +6,7 @@ platforms = ["osx-arm64", "osx-64", "linux-64"]
 [dependencies]
 sepia = { path = "." }
 ffmpeg = "*"
+agent-browser = "*"
 
 [tasks]
 build = "cargo build"
@@ -29,3 +30,4 @@ channels = ["https://prefix.dev/conda-forge"]
 
 [package.run-dependencies]
 ffmpeg = "*"
+agent-browser = "*"

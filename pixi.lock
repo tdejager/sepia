@@ -23,6 +23,7 @@ environments:
     packages:
       linux-64:
       - conda: https://prefix.dev/conda-forge/linux-64/_openmp_mutex-4.5-20_gnu.conda
+      - conda: https://prefix.dev/conda-forge/linux-64/agent-browser-0.31.1-he0c9142_0.conda
       - conda: https://prefix.dev/conda-forge/linux-64/alsa-lib-1.2.16.1-hb03c661_0.conda
       - conda: https://prefix.dev/conda-forge/linux-64/aom-3.14.1-pl5321h039972f_1.conda
       - conda: https://prefix.dev/conda-forge/linux-64/bzip2-1.0.8-hda65f42_9.conda
@@ -160,7 +161,7 @@ environments:
       - conda: https://prefix.dev/conda-forge/noarch/fonts-conda-ecosystem-1-0.tar.bz2
       - conda: https://prefix.dev/conda-forge/noarch/fonts-conda-forge-1-hc364b38_1.conda
       - conda: https://prefix.dev/conda-forge/noarch/wayland-protocols-1.49-hd8ed1ab_0.conda
-      - conda_source: sepia[46e803e5] @ .
+      - conda_source: sepia[68293337] @ .
       osx-64:
       - conda: https://prefix.dev/conda-forge/noarch/ca-certificates-2026.6.17-hbd8a1cb_0.conda
       - conda: https://prefix.dev/conda-forge/noarch/font-ttf-dejavu-sans-mono-2.37-hab24e00_0.tar.bz2
@@ -169,6 +170,7 @@ environments:
       - conda: https://prefix.dev/conda-forge/noarch/font-ttf-ubuntu-0.83-h77eed37_3.conda
       - conda: https://prefix.dev/conda-forge/noarch/fonts-conda-ecosystem-1-0.tar.bz2
       - conda: https://prefix.dev/conda-forge/noarch/fonts-conda-forge-1-hc364b38_1.conda
+      - conda: https://prefix.dev/conda-forge/osx-64/agent-browser-0.31.1-h8748e4f_0.conda
       - conda: https://prefix.dev/conda-forge/osx-64/aom-3.14.1-pl5321h3d58d69_1.conda
       - conda: https://prefix.dev/conda-forge/osx-64/bzip2-1.0.8-h500dc9f_9.conda
       - conda: https://prefix.dev/conda-forge/osx-64/cairo-1.18.4-h7656bdc_1.conda
@@ -251,7 +253,7 @@ environments:
       - conda: https://prefix.dev/conda-forge/osx-64/x264-1!164.3095-h775f41a_2.tar.bz2
       - conda: https://prefix.dev/conda-forge/osx-64/x265-3.5-hbb4e6a2_3.tar.bz2
       - conda: https://prefix.dev/conda-forge/osx-64/zstd-1.5.7-h3eecb57_6.conda
-      - conda_source: sepia[0e6e2c2f] @ .
+      - conda_source: sepia[0b815c8d] @ .
       osx-arm64:
       - conda: https://prefix.dev/conda-forge/noarch/ca-certificates-2026.6.17-hbd8a1cb_0.conda
       - conda: https://prefix.dev/conda-forge/noarch/font-ttf-dejavu-sans-mono-2.37-hab24e00_0.tar.bz2
@@ -260,6 +262,7 @@ environments:
       - conda: https://prefix.dev/conda-forge/noarch/font-ttf-ubuntu-0.83-h77eed37_3.conda
       - conda: https://prefix.dev/conda-forge/noarch/fonts-conda-ecosystem-1-0.tar.bz2
       - conda: https://prefix.dev/conda-forge/noarch/fonts-conda-forge-1-hc364b38_1.conda
+      - conda: https://prefix.dev/conda-forge/osx-arm64/agent-browser-0.31.1-h5da521f_0.conda
       - conda: https://prefix.dev/conda-forge/osx-arm64/aom-3.14.1-pl5321h513545f_1.conda
       - conda: https://prefix.dev/conda-forge/osx-arm64/bzip2-1.0.8-hd037594_9.conda
       - conda: https://prefix.dev/conda-forge/osx-arm64/cairo-1.18.4-he0f2337_1.conda
@@ -342,7 +345,7 @@ environments:
       - conda: https://prefix.dev/conda-forge/osx-arm64/x264-1!164.3095-h57fd34a_2.tar.bz2
       - conda: https://prefix.dev/conda-forge/osx-arm64/x265-3.5-hbc6ce65_3.tar.bz2
       - conda: https://prefix.dev/conda-forge/osx-arm64/zstd-1.5.7-hbf9d68e_6.conda
-      - conda_source: sepia[d0cf3ad5] @ .
+      - conda_source: sepia[a94b77ce] @ .
 packages:
 - conda: https://prefix.dev/conda-forge/linux-64/_openmp_mutex-4.5-20_gnu.conda
   build_number: 20
@@ -360,6 +363,18 @@ packages:
     - _openmp_mutex >=4.5
   size: 28948
   timestamp: 1770939786096
+- conda: https://prefix.dev/conda-forge/linux-64/agent-browser-0.31.1-he0c9142_0.conda
+  sha256: aca7423eb0c2522b0462055d2d44289f5cb70a3546ea7ad1587b26b4a4ef855e
+  md5: ec717e4e14bd54c6d4c43591fdd30b68
+  depends:
+  - __glibc >=2.17,<3.0.a0
+  constrains:
+  - __glibc >=2.17
+  license: Apache-2.0
+  license_family: APACHE
+  run_exports: {}
+  size: 4174979
+  timestamp: 1782526840915
 - conda: https://prefix.dev/conda-forge/linux-64/alsa-lib-1.2.16.1-hb03c661_0.conda
   sha256: cf93ca0f1f107e95a35969a4622684e08fcb8cf37f8cf4a1e9e424828386c921
   md5: 8904e09bda369377b3dd07e2ac828c5d
@@ -2699,6 +2714,18 @@ packages:
   run_exports: {}
   size: 147954
   timestamp: 1780946721169
+- conda: https://prefix.dev/conda-forge/osx-64/agent-browser-0.31.1-h8748e4f_0.conda
+  sha256: f4771416ac340c56f929ffe55b6bd8f7fb355a28e838011dd59fdaf6354a3d5b
+  md5: 8e8282f109d53afe43b8e85ab59f0408
+  depends:
+  - __osx >=11.0
+  constrains:
+  - __osx >=11.0
+  license: Apache-2.0
+  license_family: APACHE
+  run_exports: {}
+  size: 4159770
+  timestamp: 1782526890217
 - conda: https://prefix.dev/conda-forge/osx-64/aom-3.14.1-pl5321h3d58d69_1.conda
   sha256: f4b61d6701205611c11e2dedaf398ebce30ecf05c193be98df9f7887e189129a
   md5: ccde90806539cc31f781a667e4c080d1
@@ -4207,6 +4234,18 @@ packages:
     - zstd >=1.5.7,<1.6.0a0
   size: 528148
   timestamp: 1764777156963
+- conda: https://prefix.dev/conda-forge/osx-arm64/agent-browser-0.31.1-h5da521f_0.conda
+  sha256: ea1abfca9349727c85abdbfca49f41423e52f04592c39dd930a580323f8568ab
+  md5: 3b4865db3b5d44dc5731efcae13add8a
+  depends:
+  - __osx >=11.0
+  constrains:
+  - __osx >=11.0
+  license: Apache-2.0
+  license_family: APACHE
+  run_exports: {}
+  size: 3856827
+  timestamp: 1782526845270
 - conda: https://prefix.dev/conda-forge/osx-arm64/aom-3.14.1-pl5321h513545f_1.conda
   sha256: 58ea99a3fe5fed86bfa40acc801010eb2a0a04dcf0180f68b4e2bf7b0ba7ec1f
   md5: 506b0327a51de9871ce2725022c0c955
@@ -5713,13 +5752,14 @@ packages:
     - zstd >=1.5.7,<1.6.0a0
   size: 433413
   timestamp: 1764777166076
-- conda_source: sepia[0e6e2c2f] @ .
+- conda_source: sepia[0b815c8d] @ .
   variants:
     c_stdlib: macosx_deployment_target
     c_stdlib_version: '13.0'
     target_platform: osx-64
   depends:
   - ffmpeg
+  - agent-browser
   - __osx >=13.0
   constrains:
   - __osx >=11.0
@@ -5758,13 +5798,14 @@ packages:
   - conda: https://prefix.dev/conda-forge/osx-64/sigtool-codesign-0.1.3-hc0f2934_0.conda
   - conda: https://prefix.dev/conda-forge/osx-64/tapi-1600.0.11.8-h8d8e812_2.conda
   - conda: https://prefix.dev/conda-forge/osx-64/zstd-1.5.7-h3eecb57_6.conda
-- conda_source: sepia[46e803e5] @ .
+- conda_source: sepia[68293337] @ .
   variants:
     c_stdlib: sysroot
     c_stdlib_version: '2.28'
     target_platform: linux-64
   depends:
   - ffmpeg
+  - agent-browser
   - libgcc >=15
   - __glibc >=2.28,<3.0.a0
   constrains:
@@ -5795,13 +5836,14 @@ packages:
   - conda: https://prefix.dev/conda-forge/linux-64/_openmp_mutex-4.5-20_gnu.conda
   - conda: https://prefix.dev/conda-forge/linux-64/libgcc-15.2.0-he0feb66_19.conda
   - conda: https://prefix.dev/conda-forge/linux-64/libgomp-15.2.0-he0feb66_19.conda
-- conda_source: sepia[d0cf3ad5] @ .
+- conda_source: sepia[a94b77ce] @ .
   variants:
     c_stdlib: macosx_deployment_target
     c_stdlib_version: '13.0'
     target_platform: osx-arm64
   depends:
   - ffmpeg
+  - agent-browser
   - __osx >=13.0
   constrains:
   - __osx >=11.0
