@@ -1,0 +1,40 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write # Required for prefix.dev trusted publishing via OIDC
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish to prefix.dev/tim
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up pixi
+        uses: prefix-dev/setup-pixi@v0.10.0
+        with:
+          pixi-version: v0.71.0
+          cache: true
+
+      - name: Verify locked environment
+        run: pixi install --locked
+
+      - name: Run checks
+        run: pixi run check
+
+      - name: Publish package to prefix.dev/tim
+        run: pixi publish --target-channel https://prefix.dev/tim --generate-attestation --clean
