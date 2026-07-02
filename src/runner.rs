@@ -11,10 +11,14 @@ use crate::{
     config::{DemoConfig, StepConfig},
     encoder::VideoEncoder,
     inspect::write_inspect_html,
-    metadata::{SessionMetadata, SessionScreenshot, write_session_metadata},
+    metadata::{SessionMetadata, SessionScreenshot, SessionStep, write_session_metadata},
     pr::{pr_data_from_metadata, render_pr_comment},
+    progress::ProgressReporter,
     session::{SessionPaths, slugify, write_latest},
-    timeline::{TimelineCompiler, frames_for_duration, render_timeline_markdown},
+    timeline::{
+        CLICK_CUE_MS, FILL_CUE_MS, TimelineCompiler, cue_frames, frames_for_duration,
+        render_timeline_markdown,
+    },
 };
 
 #[derive(Debug, Clone)]
@@ -35,26 +39,43 @@ pub fn run_capture<B, E>(
     output_root: PathBuf,
     browser: &B,
     encoder: &E,
+    progress: &dyn ProgressReporter,
 ) -> Result<RunOutput>
 where
     B: BrowserBackend,
     E: VideoEncoder,
 {
+    browser.preflight()?;
+    encoder.preflight()?;
+
     let created_at = Local::now();
     let paths = SessionPaths::create(output_root.clone(), &config.name, created_at)?;
     let plan = TimelineCompiler::compile(config);
     let mut screenshots = Vec::new();
-    let mut capture = FrameCapture::new(&paths);
+    let mut capture = FrameCapture::new(&paths, progress);
 
+    progress.started(&config.name, config.steps.len(), config.capture.output_fps);
+    progress.opening(&config.url);
     browser.open(&config.url)?;
     capture
         .capture_frame(browser)
         .context("failed to capture initial frame")?;
 
+    let mut steps = Vec::new();
+    let total_steps = config.steps.len();
     for (index, step) in config.steps.iter().enumerate() {
+        progress.step(index + 1, total_steps, step.kind().label(), &step.name);
+        let start_frame = capture.next_frame;
         execute_step(step, config, &mut capture, browser)
             .with_context(|| format!("failed while executing step `{}`", step.name))?;
+        let hold_frames =
+            frames_for_duration(step.hold_ms(&config.capture), config.capture.output_fps);
+        let captured_frames = capture
+            .next_frame
+            .saturating_sub(start_frame)
+            .saturating_sub(hold_frames);
 
+        let mut screenshot = None;
         if step.screenshot {
             let screenshot_path =
                 paths
@@ -65,11 +86,28 @@ where
                 .with_context(|| format!("failed to capture key screenshot for `{}`", step.name))?;
             screenshots.push(SessionScreenshot {
                 label: step.name.clone(),
-                path: screenshot_path,
+                path: screenshot_path.clone(),
             });
+            screenshot = Some(screenshot_path);
         }
+
+        steps.push(SessionStep {
+            name: step.name.clone(),
+            kind: step.kind(),
+            start_frame,
+            captured_frames,
+            hold_frames,
+            screenshot,
+        });
     }
 
+    progress.encoding(
+        paths
+            .video
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("demo.mp4"),
+    );
     encoder
         .encode(&paths.frames_dir, &paths.video, config.capture.output_fps)
         .context("failed to encode Sepia video")?;
@@ -92,10 +130,10 @@ where
         ),
     )
     .with_context(|| format!("failed to write {}", paths.summary_md.display()))?;
-    write_inspect_html(&paths, config, &plan)?;
     let frame_count = capture.frame_count();
     let metadata =
-        SessionMetadata::from_capture(config, &paths, created_at, frame_count, screenshots);
+        SessionMetadata::from_capture(config, &paths, created_at, frame_count, screenshots, steps);
+    write_inspect_html(&paths, &metadata)?;
     write_session_metadata(&paths, &metadata)?;
     fs::write(
         &paths.pr_comment_md,
@@ -106,6 +144,7 @@ where
 
     drop(capture);
 
+    progress.finished(frame_count, metadata.duration_seconds());
     Ok(RunOutput { paths, frame_count })
 }
 
@@ -123,14 +162,26 @@ where
         capture.capture_frame(browser)?;
     } else if let Some(js) = &step.eval {
         browser.eval(js)?;
-        sleep_ms(step.duration_ms.unwrap_or(config.capture.default_action_ms));
+        sleep_ms(step.action_ms(&config.capture));
         capture.capture_frame(browser)?;
     } else if let Some(fill) = &step.fill {
+        // Ring the input so viewers see where the text lands, then fill it.
+        browser.eval(&fill_cue_js(&fill.selector))?;
+        capture.capture_over(browser, FILL_CUE_MS, config.capture.output_fps)?;
         browser.fill(&fill.selector, &fill.text)?;
-        sleep_ms(step.duration_ms.unwrap_or(config.capture.default_action_ms));
+        sleep_ms(step.action_ms(&config.capture));
+        capture.capture_frame(browser)?;
+    } else if let Some(click) = &step.click {
+        // Pulse a ripple at the target and capture a few frames of it, so the
+        // click is visible in the video, then fire the (fire-and-forget) click.
+        let index = click.index.unwrap_or(0);
+        browser.eval(&click_cue_js(&click.selector, index))?;
+        capture.capture_over(browser, CLICK_CUE_MS, config.capture.output_fps)?;
+        browser.eval(&click_js(&click.selector, index))?;
+        sleep_ms(step.action_ms(&config.capture));
         capture.capture_frame(browser)?;
     } else if let Some(scroll) = &step.scroll {
-        let duration_ms = step.duration_ms.unwrap_or(config.capture.default_action_ms);
+        let duration_ms = step.action_ms(&config.capture);
         let frames = step
             .frames
             .unwrap_or_else(|| frames_for_duration(duration_ms, config.capture.output_fps).max(2));
@@ -151,19 +202,97 @@ where
         capture.capture_frame(browser)?;
     }
 
-    let hold_ms = step.hold_ms.unwrap_or(config.capture.default_hold_ms);
-    let hold_frames = frames_for_duration(hold_ms, config.capture.output_fps);
+    let hold_frames = frames_for_duration(step.hold_ms(&config.capture), config.capture.output_fps);
     capture.duplicate_last_frame(hold_frames)?;
     Ok(())
 }
 
 fn scroll_js(selector: &str, pixels: f64) -> String {
     let selector_json = serde_json::to_string(selector).expect("selector string should serialize");
+    // Scrolling `html`/`body` is a trap: which one actually scrolls depends on
+    // the page's mode. Redirect those to `document.scrollingElement` (the real
+    // page scroller), scroll inner containers directly, and fall back to
+    // `window.scrollBy` if the page element reports no movement.
     format!(
         r#"(() => {{
   const el = document.querySelector({selector_json});
   if (!el) throw new Error(`Sepia scroll target not found: ${{{selector_json}}}`);
-  el.scrollTop += {pixels};
+  const page = document.scrollingElement || document.documentElement;
+  const target = (el === document.documentElement || el === document.body) ? page : el;
+  const before = target.scrollTop;
+  target.scrollTop += {pixels};
+  if (target.scrollTop === before && target === page) window.scrollBy(0, {pixels});
+}})()"#
+    )
+}
+
+fn click_js(selector: &str, index: u32) -> String {
+    let selector_json = serde_json::to_string(selector).expect("selector string should serialize");
+    format!(
+        r#"(() => {{
+  const el = document.querySelectorAll({selector_json})[{index}];
+  if (!el) throw new Error(`Sepia click target not found: ${{{selector_json}}} #{index}`);
+  el.click();
+}})()"#
+    )
+}
+
+/// Scroll the target into view and pulse a ripple over it, so the click is
+/// visible in the recording. Uses the Web Animations API (no injected
+/// stylesheet) to stay within strict Content-Security-Policy pages.
+fn click_cue_js(selector: &str, index: u32) -> String {
+    let selector_json = serde_json::to_string(selector).expect("selector string should serialize");
+    format!(
+        r#"(() => {{
+  const el = document.querySelectorAll({selector_json})[{index}];
+  if (!el) throw new Error(`Sepia click target not found: ${{{selector_json}}} #{index}`);
+  el.scrollIntoView({{block: 'center', inline: 'center'}});
+  const r = el.getBoundingClientRect();
+  const dot = document.createElement('div');
+  Object.assign(dot.style, {{
+    position: 'fixed',
+    left: (r.left + r.width / 2) + 'px',
+    top: (r.top + r.height / 2) + 'px',
+    width: '46px', height: '46px', borderRadius: '50%',
+    border: '3px solid #d65d0e', background: 'rgba(214, 93, 14, 0.28)',
+    zIndex: '2147483647', pointerEvents: 'none',
+    transform: 'translate(-50%, -50%)'
+  }});
+  document.body.appendChild(dot);
+  dot.animate(
+    [{{transform: 'translate(-50%, -50%) scale(0.4)', opacity: 1}},
+     {{transform: 'translate(-50%, -50%) scale(2.4)', opacity: 0}}],
+    {{duration: 700, easing: 'ease-out'}}
+  );
+  setTimeout(() => dot.remove(), 750);
+}})()"#
+    )
+}
+
+/// Scroll an input into view and draw a fading ring around it, so viewers see
+/// where the text is about to be typed.
+fn fill_cue_js(selector: &str) -> String {
+    let selector_json = serde_json::to_string(selector).expect("selector string should serialize");
+    format!(
+        r#"(() => {{
+  const el = document.querySelector({selector_json});
+  if (!el) throw new Error(`Sepia fill target not found: ${{{selector_json}}}`);
+  el.scrollIntoView({{block: 'center', inline: 'center'}});
+  const r = el.getBoundingClientRect();
+  const ring = document.createElement('div');
+  Object.assign(ring.style, {{
+    position: 'fixed',
+    left: r.left + 'px', top: r.top + 'px',
+    width: r.width + 'px', height: r.height + 'px',
+    border: '3px solid #d65d0e', borderRadius: '6px', boxSizing: 'border-box',
+    zIndex: '2147483647', pointerEvents: 'none'
+  }});
+  document.body.appendChild(ring);
+  ring.animate(
+    [{{opacity: 0, transform: 'scale(1.08)'}}, {{opacity: 1, transform: 'scale(1)'}}],
+    {{duration: 300, easing: 'ease-out'}}
+  );
+  setTimeout(() => ring.remove(), 1600);
 }})()"#
     )
 }
@@ -176,14 +305,16 @@ fn sleep_ms(ms: u64) {
 
 struct FrameCapture<'a> {
     paths: &'a SessionPaths,
+    progress: &'a dyn ProgressReporter,
     next_frame: u32,
     last_frame: Option<PathBuf>,
 }
 
 impl<'a> FrameCapture<'a> {
-    fn new(paths: &'a SessionPaths) -> Self {
+    fn new(paths: &'a SessionPaths, progress: &'a dyn ProgressReporter) -> Self {
         Self {
             paths,
+            progress,
             next_frame: 1,
             last_frame: None,
         }
@@ -197,6 +328,7 @@ impl<'a> FrameCapture<'a> {
         browser.screenshot(&path)?;
         self.next_frame += 1;
         self.last_frame = Some(path.clone());
+        self.progress.tick();
         Ok(path)
     }
 
@@ -215,12 +347,28 @@ impl<'a> FrameCapture<'a> {
             })?;
             self.next_frame += 1;
             self.last_frame = Some(path);
+            self.progress.tick();
         }
         Ok(())
     }
 
     fn frame_count(&self) -> u32 {
         self.next_frame.saturating_sub(1)
+    }
+
+    /// Capture frames spread across `ms` milliseconds — used to record a cue
+    /// (a click ripple or fill ring) animating before the action fires.
+    fn capture_over<B>(&mut self, browser: &B, ms: u64, fps: u32) -> Result<()>
+    where
+        B: BrowserBackend,
+    {
+        let frames = cue_frames(ms, fps);
+        let per_frame = ms / u64::from(frames);
+        for _ in 0..frames {
+            sleep_ms(per_frame);
+            self.capture_frame(browser)?;
+        }
+        Ok(())
     }
 }
 
@@ -312,6 +460,7 @@ mod tests {
                     text: "zlib".into(),
                 }),
                 scroll: None,
+                click: None,
                 hold_ms: Some(100),
                 duration_ms: Some(0),
                 frames: None,
@@ -320,8 +469,14 @@ mod tests {
         };
 
         let browser = FakeBrowser::default();
-        let run =
-            run_capture(&config, output.path().to_path_buf(), &browser, &FakeEncoder).unwrap();
+        let run = run_capture(
+            &config,
+            output.path().to_path_buf(),
+            &browser,
+            &FakeEncoder,
+            &(),
+        )
+        .unwrap();
 
         assert!(run.paths.video.exists());
         assert!(run.paths.inspect_html.exists());

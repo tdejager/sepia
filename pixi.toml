@@ -15,13 +15,16 @@ fmt = "cargo fmt --check"
 clippy = "cargo clippy --all-targets -- -D warnings"
 check = { depends-on = ["fmt", "clippy", "test"] }
 sepia = "cargo run --"
-run-example = "sepia run examples/basilisk-windowed-browse.toml"
+run-hacker-news = "sepia run examples/hacker-news-browse.toml"
+run-wikipedia = "sepia run examples/wikipedia-search.toml"
+run-crates-io = "sepia run examples/crates-io-search.toml"
+run-marginalia = "sepia run examples/marginalia-search.toml"
 inspect = "sepia inspect"
 package-local = "pixi publish --target-dir dist/conda"
 
 [package]
 name = "sepia"
-version = "0.1.1"
+version = "0.1.2"
 
 [package.build.backend]
 name = "pixi-build-rust"

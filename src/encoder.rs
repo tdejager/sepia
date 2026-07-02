@@ -8,6 +8,10 @@ use crate::browser::shellish_join;
 
 pub trait VideoEncoder {
     fn encode(&self, frames_dir: &Path, output: &Path, output_fps: u32) -> Result<()>;
+    /// Check the encoder is ready before a capture starts. Defaults to a no-op.
+    fn preflight(&self) -> Result<()> {
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -73,6 +77,15 @@ impl VideoEncoder for FfmpegCliEncoder {
             );
         }
         Ok(())
+    }
+
+    fn preflight(&self) -> Result<()> {
+        crate::preflight::ensure_binary(
+            &self.binary,
+            "Install Sepia with Pixi to bundle it: \
+             `pixi global install -c https://prefix.dev/tim -c conda-forge sepia`, \
+             or install it on its own with `pixi global install ffmpeg`.",
+        )
     }
 }
 

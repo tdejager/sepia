@@ -9,9 +9,9 @@ sepia::config::invalid
  6 | name = "Too much"
  7 | wait_ms = 10
    :           ^|
-   :            `-- step `Too much` has multiple actions. Use exactly one of wait_ms, eval, fill, or scroll. `wait_ms` is one of the actions.
+   :            `-- step `Too much` has multiple actions. Use exactly one of wait_ms, eval, fill, scroll, or click. `wait_ms` is one of the actions.
  8 | eval = "console.log(1)"
    :         ^^^^^^^|^^^^^^
-   :                `-- step `Too much` has multiple actions. Use exactly one of wait_ms, eval, fill, or scroll. `eval` is one of the actions.
+   :                `-- step `Too much` has multiple actions. Use exactly one of wait_ms, eval, fill, scroll, or click. `eval` is one of the actions.
    `----
   help: Split separate browser actions into separate [[steps]] entries.

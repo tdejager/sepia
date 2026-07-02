@@ -48,7 +48,7 @@ pub enum ConfigValidationError {
     #[error("step name must not be empty")]
     EmptyStepName,
     #[error(
-        "step `{step}` has multiple actions. Use exactly one of wait_ms, eval, fill, or scroll"
+        "step `{step}` has multiple actions. Use exactly one of wait_ms, eval, fill, scroll, or click"
     )]
     MultipleStepActions { step: String },
     #[error("step `{step}` frames must be greater than 0")]
@@ -107,6 +107,8 @@ pub struct StepConfig {
     #[serde(default)]
     pub scroll: Option<ScrollConfig>,
     #[serde(default)]
+    pub click: Option<ClickConfig>,
+    #[serde(default)]
     pub hold_ms: Option<u64>,
     #[serde(default)]
     pub duration_ms: Option<u64>,
@@ -130,6 +132,71 @@ pub struct FillConfig {
 pub struct ScrollConfig {
     pub selector: String,
     pub pixels: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+#[serde(deny_unknown_fields)]
+pub struct ClickConfig {
+    pub selector: String,
+    /// Which match to click when the selector matches several (0-based). Omit for the first.
+    #[serde(default)]
+    pub index: Option<u32>,
+}
+
+/// A step's action, classified once so every surface (labels, timeline planning,
+/// execution, metadata, inspect rendering) agrees. Presentation lives here so
+/// adding a kind is a compile-checked, single-place change.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum StepKind {
+    Wait,
+    Eval,
+    Fill,
+    Scroll,
+    Click,
+    View,
+}
+
+impl StepKind {
+    /// One-word label used in metadata, the plan tree, and CSS class names.
+    #[must_use]
+    pub fn label(self) -> &'static str {
+        match self {
+            StepKind::Wait => "wait",
+            StepKind::Eval => "eval",
+            StepKind::Fill => "fill",
+            StepKind::Scroll => "scroll",
+            StepKind::Click => "click",
+            StepKind::View => "view",
+        }
+    }
+
+    /// A friendly per-step note shown in the inspect UI.
+    #[must_use]
+    pub fn note(self) -> &'static str {
+        match self {
+            StepKind::Wait => "holds a beat",
+            StepKind::Eval => "runs a snippet",
+            StepKind::Fill => "types it in",
+            StepKind::Scroll => "a smooth glide",
+            StepKind::Click => "clicks through",
+            StepKind::View => "a quiet look",
+        }
+    }
+
+    /// Gruvbox-flavoured colour for the plan tree and inspect kind badges.
+    #[must_use]
+    pub fn rgb(self) -> (u8, u8, u8) {
+        match self {
+            StepKind::Scroll => (215, 153, 33),
+            StepKind::Fill => (214, 93, 14),
+            StepKind::Eval => (177, 98, 134),
+            StepKind::Click => (69, 133, 136),
+            StepKind::Wait => (104, 157, 106),
+            StepKind::View => (122, 79, 44),
+        }
+    }
 }
 
 impl DemoConfig {
@@ -169,11 +236,42 @@ impl DemoConfig {
 }
 
 impl StepConfig {
+    /// This step's action, classified once (see [`StepKind`]).
+    #[must_use]
+    pub fn kind(&self) -> StepKind {
+        if self.scroll.is_some() {
+            StepKind::Scroll
+        } else if self.fill.is_some() {
+            StepKind::Fill
+        } else if self.click.is_some() {
+            StepKind::Click
+        } else if self.eval.is_some() {
+            StepKind::Eval
+        } else if self.wait_ms.is_some() {
+            StepKind::Wait
+        } else {
+            StepKind::View
+        }
+    }
+
     pub fn action_count(&self) -> usize {
         usize::from(self.wait_ms.is_some())
             + usize::from(self.eval.is_some())
             + usize::from(self.fill.is_some())
             + usize::from(self.scroll.is_some())
+            + usize::from(self.click.is_some())
+    }
+
+    /// Milliseconds to hold on the resulting state, falling back to the capture default.
+    #[must_use]
+    pub fn hold_ms(&self, capture: &CaptureConfig) -> u64 {
+        self.hold_ms.unwrap_or(capture.default_hold_ms)
+    }
+
+    /// Milliseconds an animated action runs for, falling back to the capture default.
+    #[must_use]
+    pub fn action_ms(&self, capture: &CaptureConfig) -> u64 {
+        self.duration_ms.unwrap_or(capture.default_action_ms)
     }
 
     pub fn validate(&self) -> Result<(), ConfigValidationError> {
@@ -271,6 +369,7 @@ impl<'de> TomlDeserialize<'de> for StepConfig {
         let eval = table.optional_s::<String>("eval");
         let fill = table.optional_s::<FillConfig>("fill");
         let scroll = table.optional_s::<ScrollConfig>("scroll");
+        let click = table.optional_s::<ClickConfig>("click");
         let hold_ms = table.optional::<u64>("hold_ms");
         let duration_ms = table.optional::<u64>("duration_ms");
         let frames = table.optional_s::<u32>("frames");
@@ -288,11 +387,12 @@ impl<'de> TomlDeserialize<'de> for StepConfig {
             eval.as_ref().map(|value| ("eval", value.span)),
             fill.as_ref().map(|value| ("fill", value.span)),
             scroll.as_ref().map(|value| ("scroll", value.span)),
+            click.as_ref().map(|value| ("click", value.span)),
         ];
         let actions = actions.into_iter().flatten().collect::<Vec<_>>();
         if actions.len() > 1 {
             let message = format!(
-                "step `{}` has multiple actions. Use exactly one of wait_ms, eval, fill, or scroll.",
+                "step `{}` has multiple actions. Use exactly one of wait_ms, eval, fill, scroll, or click.",
                 name.value
             );
             errors.extend(actions.into_iter().map(|(action, span)| {
@@ -319,6 +419,7 @@ impl<'de> TomlDeserialize<'de> for StepConfig {
             eval: eval.map(|value| value.value),
             fill: fill.map(|value| value.value),
             scroll: scroll.map(|value| value.value),
+            click: click.map(|value| value.value),
             hold_ms,
             duration_ms,
             frames: frames.map(|value| value.value),
@@ -359,6 +460,22 @@ impl<'de> TomlDeserialize<'de> for ScrollConfig {
             pixels: pixels
                 .expect("required field errors are returned by TableHelper::finalize")
                 .value,
+        })
+    }
+}
+
+impl<'de> TomlDeserialize<'de> for ClickConfig {
+    fn deserialize(value: &mut Value<'de>) -> Result<Self, DeserError> {
+        let mut table = TableHelper::new(value)?;
+        let selector = table.required_s::<String>("selector").ok();
+        let index = table.optional::<u32>("index");
+        table.finalize(None)?;
+
+        Ok(Self {
+            selector: selector
+                .expect("required field errors are returned by TableHelper::finalize")
+                .value,
+            index,
         })
     }
 }
@@ -443,7 +560,7 @@ fn help_for_toml_errors(errors: &[TomlError]) -> Option<String> {
     }) {
         Some(
             "Allowed top-level keys are name, description, url, session, capture, and steps. \
-             Step actions are wait_ms, eval, fill, and scroll. Use at most one per step."
+             Step actions are wait_ms, eval, fill, scroll, and click. Use at most one per step."
                 .to_owned(),
         )
     } else if errors.iter().any(|error| match &error.kind {
@@ -560,6 +677,7 @@ eval = "console.log(1)"
             eval: Some("console.log(1)".into()),
             fill: None,
             scroll: None,
+            click: None,
             hold_ms: None,
             duration_ms: None,
             frames: None,
@@ -638,7 +756,7 @@ eval = "console.log(1)"
 
         let step = &mut schema["$defs"]["StepConfig"];
         step["description"] = serde_json::json!(
-            "A named script step. Use at most one action: wait_ms, eval, fill, or scroll."
+            "A named script step. Use at most one action: wait_ms, eval, fill, scroll, or click."
         );
         step["properties"]["name"]["minLength"] = serde_json::json!(1);
         step["properties"]["name"]["pattern"] = serde_json::json!(r"\S");
@@ -650,6 +768,8 @@ eval = "console.log(1)"
             serde_json::json!("Fill an input matched by selector.");
         step["properties"]["scroll"]["description"] =
             serde_json::json!("Scroll an element matched by selector.");
+        step["properties"]["click"]["description"] =
+            serde_json::json!("Click an element matched by selector.");
         step["properties"]["hold_ms"]["description"] =
             serde_json::json!("Milliseconds to hold the resulting state for viewers.");
         step["properties"]["duration_ms"]["description"] =
@@ -666,9 +786,13 @@ eval = "console.log(1)"
                         { "required": ["wait_ms", "eval"] },
                         { "required": ["wait_ms", "fill"] },
                         { "required": ["wait_ms", "scroll"] },
+                        { "required": ["wait_ms", "click"] },
                         { "required": ["eval", "fill"] },
                         { "required": ["eval", "scroll"] },
-                        { "required": ["fill", "scroll"] }
+                        { "required": ["eval", "click"] },
+                        { "required": ["fill", "scroll"] },
+                        { "required": ["fill", "click"] },
+                        { "required": ["scroll", "click"] }
                     ]
                 }
             }
@@ -679,6 +803,12 @@ eval = "console.log(1)"
             serde_json::json!("CSS selector for the input to fill.");
         schema["$defs"]["FillConfig"]["properties"]["text"]["description"] =
             serde_json::json!("Text to enter into the matched input.");
+
+        schema["$defs"]["ClickConfig"]["description"] = serde_json::json!("Element click action.");
+        schema["$defs"]["ClickConfig"]["properties"]["selector"]["description"] =
+            serde_json::json!("CSS selector for the element to click.");
+        schema["$defs"]["ClickConfig"]["properties"]["index"]["description"] =
+            serde_json::json!("Which match to click when the selector matches several (0-based).");
 
         schema["$defs"]["ScrollConfig"]["description"] =
             serde_json::json!("Element scroll action.");

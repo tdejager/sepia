@@ -1,0 +1,51 @@
+#:schema ../schemas/sepia-script.schema.json
+
+# A ready-to-run Sepia demo against a public website — no login required.
+#
+#   sepia run examples/crates-io-search.toml
+#
+# Searches crates.io for a crate, scrolls the results, and opens the top hit.
+
+name = "crates.io search"
+description = "Search crates.io for a crate and open its page"
+url = "https://crates.io"
+session = "sepia-crates-demo"
+
+[capture]
+output_fps = 24
+default_hold_ms = 700
+default_action_ms = 400
+
+[[steps]]
+name = "Home page loads"
+wait_ms = 1600
+hold_ms = 1200
+screenshot = true
+
+[[steps]]
+name = "Type a crate name"
+fill = { selector = "input[name=q]", text = "tokio" }
+hold_ms = 1100
+screenshot = true
+
+[[steps]]
+name = "Open search results"
+eval = "location.assign('/search?q=tokio')"
+duration_ms = 2200
+hold_ms = 1200
+screenshot = true
+
+[[steps]]
+name = "Scroll the results"
+scroll = { selector = "html", pixels = 500 }
+duration_ms = 1200
+frames = 24
+hold_ms = 900
+screenshot = true
+
+[[steps]]
+name = "Open the top crate"
+click = { selector = "a[href^=\"/crates/\"]" }
+duration_ms = 2200
+hold_ms = 1500
+screenshot = true

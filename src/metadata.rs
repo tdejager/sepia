@@ -6,7 +6,10 @@ use crate::ResultContextExt;
 use chrono::{DateTime, Local};
 use serde::{Deserialize, Serialize};
 
-use crate::{config::DemoConfig, session::SessionPaths};
+use crate::{
+    config::{DemoConfig, StepKind},
+    session::SessionPaths,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct SessionMetadata {
@@ -19,12 +22,28 @@ pub struct SessionMetadata {
     pub video: PathBuf,
     pub inspect: PathBuf,
     pub screenshots: Vec<SessionScreenshot>,
+    #[serde(default)]
+    pub steps: Vec<SessionStep>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct SessionScreenshot {
     pub label: String,
     pub path: PathBuf,
+}
+
+/// One script step as it was actually captured, with enough timing to drive the
+/// inspect UI (per-step video seek points and thumbnails).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SessionStep {
+    pub name: String,
+    pub kind: StepKind,
+    /// 1-based index of the first video frame belonging to this step.
+    pub start_frame: u32,
+    pub captured_frames: u32,
+    pub hold_frames: u32,
+    #[serde(default)]
+    pub screenshot: Option<PathBuf>,
 }
 
 impl SessionMetadata {
@@ -35,6 +54,7 @@ impl SessionMetadata {
         created_at: DateTime<Local>,
         frame_count: u32,
         screenshots: Vec<SessionScreenshot>,
+        steps: Vec<SessionStep>,
     ) -> Self {
         Self {
             name: config.name.clone(),
@@ -46,6 +66,7 @@ impl SessionMetadata {
             video: paths.video.clone(),
             inspect: paths.inspect_html.clone(),
             screenshots,
+            steps,
         }
     }
 
@@ -91,6 +112,7 @@ mod tests {
             video: PathBuf::from("demo.mp4"),
             inspect: PathBuf::from("inspect.html"),
             screenshots: vec![],
+            steps: vec![],
         };
         assert_eq!(metadata.duration_seconds(), 2.0);
     }

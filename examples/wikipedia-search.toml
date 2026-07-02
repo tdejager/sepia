@@ -1,0 +1,47 @@
+#:schema ../schemas/sepia-script.schema.json
+
+# A ready-to-run Sepia demo against a public website — no login required.
+#
+#   sepia run examples/wikipedia-search.toml
+#
+# Opens Wikipedia, types a search, submits it, and scrolls the article.
+# (Sepia has no click/press action, so the form is submitted with `eval`.)
+
+name = "Wikipedia search"
+description = "Search Wikipedia for the cuttlefish and browse the article"
+url = "https://en.wikipedia.org/wiki/Main_Page"
+session = "sepia-wikipedia-demo"
+
+[capture]
+output_fps = 24
+default_hold_ms = 700
+default_action_ms = 400
+
+[[steps]]
+name = "Main page loads"
+wait_ms = 1200
+hold_ms = 1200
+screenshot = true
+
+[[steps]]
+name = "Type a search query"
+fill = { selector = "#searchInput", text = "Cuttlefish" }
+hold_ms = 1300
+screenshot = true
+
+[[steps]]
+name = "Open the result"
+# Wikipedia's search box is a Vue typeahead, so navigate to the article directly.
+eval = "location.assign('https://en.wikipedia.org/wiki/Cuttlefish')"
+duration_ms = 1800
+hold_ms = 1400
+screenshot = true
+
+[[steps]]
+name = "Scroll the article"
+# Wikipedia is a standards-mode page, so the document scrolls via <html>.
+scroll = { selector = "html", pixels = 900 }
+duration_ms = 1600
+frames = 32
+hold_ms = 1000
+screenshot = true

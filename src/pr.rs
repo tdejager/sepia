@@ -133,7 +133,8 @@ pub fn upsert_marked_block_at_top(existing_body: &str, sepia_block: &str) -> Str
     updated
 }
 
-fn remove_marked_block(existing_body: &str) -> String {
+#[must_use]
+pub fn remove_marked_block(existing_body: &str) -> String {
     let Some(start) = existing_body.find(MARKER_START) else {
         return existing_body.to_string();
     };

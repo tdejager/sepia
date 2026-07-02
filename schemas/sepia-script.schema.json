@@ -28,6 +28,30 @@
       },
       "type": "object"
     },
+    "ClickConfig": {
+      "additionalProperties": false,
+      "description": "Element click action.",
+      "properties": {
+        "index": {
+          "default": null,
+          "description": "Which match to click when the selector matches several (0-based).",
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "selector": {
+          "description": "CSS selector for the element to click.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "selector"
+      ],
+      "type": "object"
+    },
     "FillConfig": {
       "additionalProperties": false,
       "description": "Input fill action.",
@@ -93,6 +117,12 @@
               },
               {
                 "required": [
+                  "wait_ms",
+                  "click"
+                ]
+              },
+              {
+                "required": [
                   "eval",
                   "fill"
                 ]
@@ -105,16 +135,46 @@
               },
               {
                 "required": [
+                  "eval",
+                  "click"
+                ]
+              },
+              {
+                "required": [
                   "fill",
                   "scroll"
+                ]
+              },
+              {
+                "required": [
+                  "fill",
+                  "click"
+                ]
+              },
+              {
+                "required": [
+                  "scroll",
+                  "click"
                 ]
               }
             ]
           }
         }
       ],
-      "description": "A named script step. Use at most one action: wait_ms, eval, fill, or scroll.",
+      "description": "A named script step. Use at most one action: wait_ms, eval, fill, scroll, or click.",
       "properties": {
+        "click": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ClickConfig"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Click an element matched by selector."
+        },
         "duration_ms": {
           "default": null,
           "description": "Milliseconds used to animate an action such as scrolling.",

@@ -3,16 +3,24 @@ use std::{fs, path::Path};
 use miette::Result;
 
 use crate::ResultContextExt;
+use base64::{Engine as _, engine::general_purpose::STANDARD};
 use html_escape::encode_text;
 
-use crate::{config::DemoConfig, session::SessionPaths, timeline::TimelinePlan};
+use crate::{metadata::SessionMetadata, session::SessionPaths};
 
-pub fn write_inspect_html(
-    paths: &SessionPaths,
-    config: &DemoConfig,
-    plan: &TimelinePlan,
-) -> Result<()> {
-    let html = render_inspect_html(paths, config, plan);
+// Latin `woff2` subsets embedded so the inspect page stays self-contained and
+// offline-safe when opened straight from a session directory.
+const FONT_SILKSCREEN: &[u8] = include_bytes!("../assets/fonts/silkscreen-400.woff2");
+const FONT_GAEGU_400: &[u8] = include_bytes!("../assets/fonts/gaegu-400.woff2");
+const FONT_GAEGU_700: &[u8] = include_bytes!("../assets/fonts/gaegu-700.woff2");
+const FONT_LORA_400: &[u8] = include_bytes!("../assets/fonts/lora-400.woff2");
+const FONT_LORA_600: &[u8] = include_bytes!("../assets/fonts/lora-600.woff2");
+const FONT_LORA_400_ITALIC: &[u8] = include_bytes!("../assets/fonts/lora-400-italic.woff2");
+const FONT_SPACEMONO: &[u8] = include_bytes!("../assets/fonts/spacemono-400.woff2");
+const MASCOT: &[u8] = include_bytes!("../assets/mascot.png");
+
+pub fn write_inspect_html(paths: &SessionPaths, metadata: &SessionMetadata) -> Result<()> {
+    let html = render_inspect_html(paths, metadata);
     fs::write(&paths.inspect_html, html).with_context(|| {
         format!(
             "failed to write inspect UI at {}",
@@ -22,117 +30,260 @@ pub fn write_inspect_html(
 }
 
 #[must_use]
-pub fn render_inspect_html(
-    paths: &SessionPaths,
-    config: &DemoConfig,
-    plan: &TimelinePlan,
-) -> String {
-    let title = encode_text(&config.name);
-    let description = encode_text(config.description.as_deref().unwrap_or(""));
-    let video = paths
+pub fn render_inspect_html(paths: &SessionPaths, metadata: &SessionMetadata) -> String {
+    let fps = f64::from(metadata.output_fps.max(1));
+    let total = f64::from(metadata.frame_count) / fps;
+
+    let title = encode_text(&metadata.name);
+    let description = encode_text(metadata.description.as_deref().unwrap_or(""));
+    let video_name = metadata
         .video
         .file_name()
         .and_then(|p| p.to_str())
         .unwrap_or("demo.mp4");
 
-    let mut steps = String::new();
-    for segment in &plan.segments {
-        steps.push_str(&format!(
-            "<li><strong>{}</strong> — {:?}, {}ms, capture {}, hold {}</li>\n",
-            encode_text(&segment.step_name),
-            segment.kind,
-            segment.duration_ms,
-            segment.frames_to_capture,
-            segment.hold_frames
-        ));
-    }
+    let badges = format!(
+        concat!(
+            "<span class=\"badge\"><b>{}</b> STEPS</span>",
+            "<span class=\"badge\"><b>{}</b> FPS</span>",
+            "<span class=\"badge\"><b>{}</b> FRAMES</span>",
+            "<span class=\"badge\"><b>{:.1}</b>S</span>",
+            "<span class=\"badge\">COLOR-CORRECT</span>",
+        ),
+        metadata.steps.len(),
+        metadata.output_fps,
+        metadata.frame_count,
+        total,
+    );
+
+    // Per-step data for the journey list and click-to-seek. Escaping happens in
+    // the browser via textContent, so JSON is the only encoding needed here.
+    let steps_json: Vec<serde_json::Value> = metadata
+        .steps
+        .iter()
+        .enumerate()
+        .map(|(i, step)| {
+            let step_frames = step.captured_frames + step.hold_frames;
+            let duration = f64::from(step_frames) / fps;
+            let start = f64::from(step.start_frame.saturating_sub(1)) / fps;
+            let thumb = step
+                .screenshot
+                .as_ref()
+                .and_then(|p| p.file_name())
+                .map(|f| format!("steps/{}", f.to_string_lossy()));
+            serde_json::json!({
+                "n": format!("{:02}", i + 1),
+                "name": step.name,
+                "kind": step.kind.label(),
+                "note": format!("{} · {:.1}s", step.kind.note(), duration),
+                "thumb": thumb,
+                "t": start,
+            })
+        })
+        .collect();
+    let steps_data = serde_json::to_string(&steps_json)
+        .unwrap_or_else(|_| "[]".to_owned())
+        .replace("</", "<\\/");
+
+    let consts = format!(
+        "const FPS={};const TOTAL={:.4};const STEPS={};",
+        metadata.output_fps, total, steps_data
+    );
+
+    let paths_html = format!(
+        "<b>session</b> {session}<br><b>video</b> {video}<br><b>pr block</b> {pr}",
+        session = encode_text(&paths.root.display().to_string()),
+        video = encode_text(&metadata.video.display().to_string()),
+        pr = encode_text(&paths.pr_comment_md.display().to_string()),
+    );
+
+    let created = metadata.created_at.format("%Y-%m-%d %H:%M");
+    let mascot = data_uri("image/png", MASCOT);
 
     format!(
-        r#"<!doctype html>
+        r##"<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Sepia Inspect — {title}</title>
 <style>
-body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 2rem; line-height: 1.45; color: #1f2328; }}
-video {{ max-width: 100%; border: 1px solid #d0d7de; border-radius: 8px; }}
-code, pre {{ background: #f6f8fa; border-radius: 6px; }}
-pre {{ padding: 1rem; overflow: auto; }}
-.card {{ border: 1px solid #d0d7de; border-radius: 8px; padding: 1rem; margin: 1rem 0; }}
-textarea {{ width: 100%; min-height: 8rem; }}
+{fonts}
+{style}
 </style>
 </head>
 <body>
-<h1>Sepia Inspect — {title}</h1>
-<p>{description}</p>
-<video src="{video}" controls></video>
-<div class="card">
-<h2>Timeline</h2>
-<ol>
-{steps}</ol>
-</div>
-<div class="card">
-<h2>Paths</h2>
-<pre>Session: {session}
-Video:   {video_path}</pre>
-</div>
-<div class="card">
-<h2>Feedback for agent</h2>
-<textarea>Changes needed:
+<div class="sea" id="sea"></div>
+<div class="wrap">
+  <header>
+    <img class="mascot" src="{mascot}" alt="Sepia the cuttlefish">
+    <div class="brandbox">
+      <div class="wordmark">Sepia</div>
+      <div class="hello">your demo is ready — take a look! ✦</div>
+      <div class="badges">{badges}</div>
+    </div>
+  </header>
+
+  <div class="layout">
+    <div class="card watch">
+      <div class="title"><span class="dot"></span>Watch it back</div>
+      <div class="screen"><video id="vid" src="{video}" preload="metadata" playsinline></video></div>
+      <div class="bar">
+        <button class="play" id="play" aria-label="Play or pause">▶</button>
+        <div class="rail" id="rail"><div class="prog" id="prog"></div><div class="knob" id="knob">🫧</div></div>
+        <div class="tc" id="tc">0.0 / {total:.1}s</div>
+      </div>
+    </div>
+
+    <div class="card journey">
+      <div class="title"><span class="dot"></span>The little journey · tap to jump</div>
+      <div class="steps" id="steps"></div>
+    </div>
+
+    <div class="card paths-card">
+      <div class="title"><span class="dot"></span>Kept safely over here</div>
+      <div class="paths">{paths_html}</div>
+    </div>
+
+    <div class="card note-card">
+      <div class="title"><span class="dot"></span>Tell the agent what to tweak</div>
+      <p class="desc">{description}</p>
+      <textarea>Changes needed:
 - </textarea>
+    </div>
+  </div>
+
+  <footer>recorded {created} · made with a <span class="h">♥</span> by <span class="pix">SEPIA</span> the cuttlefish</footer>
 </div>
+
+<script>
+{consts}
+{script}
+</script>
 </body>
 </html>
-"#,
-        session = encode_text(&paths.root.display().to_string()),
-        video_path = encode_text(&paths.video.display().to_string()),
+"##,
+        title = title,
+        fonts = font_faces(),
+        style = STYLE,
+        mascot = mascot,
+        badges = badges,
+        video = encode_text(video_name),
+        total = total,
+        paths_html = paths_html,
+        description = description,
+        created = created,
+        consts = consts,
+        script = SCRIPT,
     )
 }
 
-pub fn open_in_browser(path: &Path) -> Result<()> {
-    let opener = if cfg!(target_os = "macos") {
-        "open"
-    } else if cfg!(target_os = "windows") {
-        "cmd"
-    } else {
-        "xdg-open"
-    };
+/// Embedded latin font faces: (family, weight, style, bytes).
+const FONTS: &[(&str, u32, &str, &[u8])] = &[
+    ("Silkscreen", 400, "normal", FONT_SILKSCREEN),
+    ("Gaegu", 400, "normal", FONT_GAEGU_400),
+    ("Gaegu", 700, "normal", FONT_GAEGU_700),
+    ("Lora", 400, "normal", FONT_LORA_400),
+    ("Lora", 600, "normal", FONT_LORA_600),
+    ("Lora", 400, "italic", FONT_LORA_400_ITALIC),
+    ("Space Mono", 400, "normal", FONT_SPACEMONO),
+];
 
-    let mut command = std::process::Command::new(opener);
-    if cfg!(target_os = "windows") {
-        command.args(["/C", "start", ""]).arg(path);
-    } else {
-        command.arg(path);
-    }
-    command
-        .spawn()
-        .with_context(|| format!("failed to open inspect UI at {}", path.display()))?;
-    Ok(())
+fn font_faces() -> String {
+    FONTS
+        .iter()
+        .map(|(family, weight, style, bytes)| {
+            format!(
+                "@font-face{{font-family:'{family}';font-style:{style};font-weight:{weight};\
+                 font-display:swap;src:url({src}) format('woff2')}}",
+                src = data_uri("font/woff2", bytes),
+            )
+        })
+        .collect()
+}
+
+/// A `data:` URI with base64-encoded bytes, used to inline fonts and images.
+fn data_uri(mime: &str, bytes: &[u8]) -> String {
+    format!("data:{mime};base64,{}", STANDARD.encode(bytes))
+}
+
+const STYLE: &str = include_str!("../assets/inspect/style.css");
+
+const SCRIPT: &str = include_str!("../assets/inspect/script.js");
+
+pub fn open_in_browser(path: &Path) -> Result<()> {
+    opener::open_browser(path)
+        .with_context(|| format!("failed to open inspect UI at {}", path.display()))
 }
 
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
 
-    use crate::{config::CaptureConfig, timeline::TimelineCompiler};
+    use chrono::TimeZone;
+
+    use crate::metadata::{SessionMetadata, SessionStep};
 
     use super::*;
 
+    fn sample_metadata() -> SessionMetadata {
+        SessionMetadata {
+            name: "Windowed Browse".into(),
+            description: Some("Windowed package and advisory browse".into()),
+            url: "http://localhost:3001".into(),
+            created_at: chrono::Local
+                .with_ymd_and_hms(2026, 7, 2, 14, 15, 0)
+                .unwrap(),
+            output_fps: 24,
+            frame_count: 120,
+            video: PathBuf::from("/tmp/sepia/demo/demo.mp4"),
+            inspect: PathBuf::from("/tmp/sepia/demo/inspect.html"),
+            screenshots: vec![],
+            steps: vec![
+                SessionStep {
+                    name: "Initial packages page".into(),
+                    kind: crate::config::StepKind::Wait,
+                    start_frame: 2,
+                    captured_frames: 1,
+                    hold_frames: 29,
+                    screenshot: Some(PathBuf::from("/tmp/sepia/demo/steps/step-01-initial.png")),
+                },
+                SessionStep {
+                    name: "Scroll package list".into(),
+                    kind: crate::config::StepKind::Scroll,
+                    start_frame: 32,
+                    captured_frames: 32,
+                    hold_frames: 17,
+                    screenshot: None,
+                },
+            ],
+        }
+    }
+
     #[test]
     fn renders_human_inspection_page() {
-        let config = DemoConfig {
-            name: "Demo".into(),
-            description: Some("Readable".into()),
-            url: "http://localhost".into(),
-            session: None,
-            capture: CaptureConfig::default(),
-            steps: vec![],
-        };
-        let plan = TimelineCompiler::compile(&config);
         let paths = SessionPaths::from_root(PathBuf::from("/tmp/sepia/demo"));
-        let html = render_inspect_html(&paths, &config, &plan);
+        let html = render_inspect_html(&paths, &sample_metadata());
         assert!(html.contains("<video"));
         assert!(html.contains("Changes needed:"));
+    }
+
+    #[test]
+    fn embeds_fonts_and_mascot_for_offline_use() {
+        let paths = SessionPaths::from_root(PathBuf::from("/tmp/sepia/demo"));
+        let html = render_inspect_html(&paths, &sample_metadata());
+        assert!(html.contains("data:font/woff2;base64,"));
+        assert!(html.contains("data:image/png;base64,"));
+        // No external network requests.
+        assert!(!html.contains("fonts.googleapis.com"));
+    }
+
+    #[test]
+    fn embeds_per_step_seek_data() {
+        let paths = SessionPaths::from_root(PathBuf::from("/tmp/sepia/demo"));
+        let html = render_inspect_html(&paths, &sample_metadata());
+        assert!(html.contains("Scroll package list"));
+        assert!(html.contains("steps/step-01-initial.png"));
+        assert!(html.contains("const STEPS="));
     }
 }

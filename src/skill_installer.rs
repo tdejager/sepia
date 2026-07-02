@@ -122,18 +122,37 @@ pub async fn sepia_skill_install_tip() -> Option<String> {
         .await
         .ok()?;
     let missing = missing_sepia_skill_agents(&detected, &installed);
-    if missing.is_empty() {
-        return None;
+
+    // Not installed for any detected agent → nudge to install it (once).
+    if missing.len() == detected.len() {
+        let agents = missing
+            .into_iter()
+            .map(|agent| agent.to_string())
+            .collect::<Vec<_>>()
+            .join(", ");
+        return Some(format!(
+            "Tip: install the Sepia agent skill for {agents} with `sepia skill install`."
+        ));
     }
 
-    let missing = missing
-        .into_iter()
-        .map(|agent| agent.to_string())
-        .collect::<Vec<_>>()
-        .join(", ");
-    Some(format!(
-        "Tip: install the Sepia agent skill for {missing} with `sepia skill install`."
-    ))
+    // Installed for at least one agent — stay quiet unless an installed copy is
+    // out of date (its SKILL.md differs from the version built into this binary).
+    let outdated = installed
+        .iter()
+        .any(|skill| skill.name == "sepia" && installed_skill_is_outdated(&skill.path));
+    outdated.then(|| {
+        "Tip: your Sepia agent skill is out of date — refresh it with `sepia skill install`."
+            .to_string()
+    })
+}
+
+/// An installed skill is outdated when its `SKILL.md` differs from the copy
+/// compiled into this binary. Unreadable installs are treated as up to date.
+fn installed_skill_is_outdated(skill_dir: &std::path::Path) -> bool {
+    match fs::read_to_string(skill_dir.join("SKILL.md")) {
+        Ok(content) => content != EMBEDDED_SKILL,
+        Err(_) => false,
+    }
 }
 
 fn missing_sepia_skill_agents(detected: &[AgentId], installed: &[InstalledSkill]) -> Vec<AgentId> {
@@ -195,6 +214,20 @@ mod tests {
     fn embeds_standard_skill_descriptor() {
         assert!(bundled_skill_preview().contains("name: sepia"));
         assert!(bundled_skill_preview().contains("description:"));
+    }
+
+    #[test]
+    fn detects_outdated_installed_skill() {
+        let dir = tempdir().unwrap();
+        // A matching copy is up to date.
+        fs::write(dir.path().join("SKILL.md"), EMBEDDED_SKILL).unwrap();
+        assert!(!installed_skill_is_outdated(dir.path()));
+        // A changed copy is outdated.
+        fs::write(dir.path().join("SKILL.md"), "name: sepia\nstale\n").unwrap();
+        assert!(installed_skill_is_outdated(dir.path()));
+        // A missing copy is treated as up to date (no false nag).
+        let empty = tempdir().unwrap();
+        assert!(!installed_skill_is_outdated(empty.path()));
     }
 
     #[test]

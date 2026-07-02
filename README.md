@@ -88,11 +88,34 @@ If `--repo` or `--pr` are omitted, Sepia tries to read them from the current dir
 4. Inspect the output.
 5. If the video looks right, use it in the PR.
 
-Example:
+Try it now against a public site — no app or login required. This records the
+Hacker News front page, scrolls the ranked list, and opens a numbered result:
 
 ```bash
-sepia run examples/basilisk-windowed-browse.toml
-sepia inspect
+sepia run examples/hacker-news-browse.toml
+```
+
+More ready-to-run examples live in [`examples/`](examples):
+
+| Example | What it records |
+| --- | --- |
+| `hacker-news-browse.toml` | Scroll the HN front page and open a numbered result |
+| `wikipedia-search.toml` | Search Wikipedia and browse the cuttlefish article |
+| `crates-io-search.toml` | Search crates.io and open the top crate |
+| `marginalia-search.toml` | Search the independent Marginalia engine and open a result |
+
+From a checkout you can also run each via its Pixi task: `pixi run run-wikipedia`,
+`pixi run run-crates-io`, `pixi run run-marginalia`, `pixi run run-hacker-news`.
+
+In an interactive terminal, `run` opens the inspect page for you when it
+finishes (pass `--no-open` to skip it, or run `sepia inspect` yourself later).
+Under an agent or in CI it stays quiet and never opens a browser.
+
+Preview the compiled plan as a tree — timings, frames, and pacing — without
+recording anything (needs no `agent-browser` or `ffmpeg`):
+
+```bash
+sepia run examples/hacker-news-browse.toml --plan
 ```
 
 Sepia prints the session directory when the run finishes. It contains:

@@ -1,0 +1,53 @@
+#:schema ../schemas/sepia-script.schema.json
+
+# A ready-to-run Sepia demo against a public website — no login required.
+#
+#   sepia run examples/marginalia-search.toml
+#
+# Marginalia is a small independent web search engine that (unlike the big
+# ones) is friendly to automation. This types a query, submits the search,
+# scrolls the results, and opens the first one.
+
+name = "Marginalia search"
+description = "Search the independent Marginalia search engine and open a result"
+url = "https://marginalia-search.com/"
+session = "sepia-marginalia-demo"
+
+[capture]
+output_fps = 24
+default_hold_ms = 700
+default_action_ms = 400
+
+[[steps]]
+name = "Home page loads"
+wait_ms = 1400
+hold_ms = 1200
+screenshot = true
+
+[[steps]]
+name = "Type a search query"
+fill = { selector = "input[name=query]", text = "cuttlefish" }
+hold_ms = 1200
+screenshot = true
+
+[[steps]]
+name = "Submit the search"
+eval = "document.querySelector('input[name=query]').form.submit()"
+duration_ms = 1800
+hold_ms = 1300
+screenshot = true
+
+[[steps]]
+name = "Scroll the results"
+scroll = { selector = "html", pixels = 800 }
+duration_ms = 1600
+frames = 28
+hold_ms = 900
+screenshot = true
+
+[[steps]]
+name = "Open the first result"
+click = { selector = "main a[href^=\"http\"]:not([href*=\"marginalia\"])" }
+duration_ms = 2200
+hold_ms = 1500
+screenshot = true

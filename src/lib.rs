@@ -57,6 +57,8 @@ pub mod github;
 pub mod inspect;
 pub mod metadata;
 pub mod pr;
+pub mod preflight;
+pub mod progress;
 pub mod runner;
 pub mod session;
 pub mod skill_installer;

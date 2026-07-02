@@ -9,6 +9,10 @@ pub trait BrowserBackend {
     fn eval(&self, js: &str) -> Result<()>;
     fn fill(&self, selector: &str, text: &str) -> Result<()>;
     fn screenshot(&self, path: &Path) -> Result<()>;
+    /// Check the backend is ready before a capture starts. Defaults to a no-op.
+    fn preflight(&self) -> Result<()> {
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -67,6 +71,15 @@ impl BrowserBackend for AgentBrowserBackend {
 
     fn screenshot(&self, path: &Path) -> Result<()> {
         self.run(&["screenshot".into(), path.display().to_string()])
+    }
+
+    fn preflight(&self) -> Result<()> {
+        crate::preflight::ensure_binary(
+            &self.binary,
+            "Install Sepia with Pixi to bundle it: \
+             `pixi global install -c https://prefix.dev/tim -c conda-forge sepia`, \
+             or install it on its own with `pixi global install agent-browser`.",
+        )
     }
 }
 

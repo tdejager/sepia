@@ -12,4 +12,4 @@ sepia::config::invalid
    :   `-- unexpected key `click`
    `----
   help: Allowed top-level keys are name, description, url, session, capture, and steps. Step
-        actions are wait_ms, eval, fill, and scroll. Use at most one per step.
+        actions are wait_ms, eval, fill, scroll, and click. Use at most one per step.
