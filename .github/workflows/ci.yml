@@ -12,8 +12,18 @@ permissions:
 
 jobs:
   pixi:
-    name: Pixi check and package build
-    runs-on: ubuntu-latest
+    name: Pixi check and package build (${{ matrix.target-platform }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target-platform: linux-64
+            runner: ubuntu-latest
+          - target-platform: osx-arm64
+            runner: macos-latest
+          - target-platform: win-64
+            runner: windows-latest
 
     steps:
       - name: Check out repository
@@ -30,14 +40,15 @@ jobs:
         run: pixi install --locked
 
       - name: Run checks
+        if: matrix.target-platform == 'linux-64'
         run: pixi run check
 
       - name: Build package without publishing
-        run: pixi run package-local
+        run: pixi publish --target-platform ${{ matrix.target-platform }} --target-dir dist/conda
 
       - name: Upload package artifact
         uses: actions/upload-artifact@v4
         with:
-          name: conda-package
+          name: conda-package-${{ matrix.target-platform }}
           path: dist/conda/*
           if-no-files-found: error
