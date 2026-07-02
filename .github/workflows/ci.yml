@@ -44,7 +44,7 @@ jobs:
         run: pixi run check
 
       - name: Build package without publishing
-        run: pixi publish --target-platform ${{ matrix.target-platform }} --build-dir .pixi/publish-bld-${{ matrix.target-platform }} --target-dir dist/conda
+        run: pixi publish --target-platform ${{ matrix.target-platform }} --build-dir "${{ github.workspace }}/.pixi/publish-bld-${{ matrix.target-platform }}" --target-dir dist/conda
 
       - name: Upload package artifact
         uses: actions/upload-artifact@v4

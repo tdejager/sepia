@@ -48,4 +48,4 @@ jobs:
         run: pixi run check
 
       - name: Publish package to prefix.dev/tim
-        run: pixi publish --target-platform ${{ matrix.target-platform }} --build-dir .pixi/publish-bld-${{ matrix.target-platform }} --target-channel https://prefix.dev/tim --generate-attestation --clean
+        run: pixi publish --target-platform ${{ matrix.target-platform }} --build-dir "${{ github.workspace }}/.pixi/publish-bld-${{ matrix.target-platform }}" --target-channel https://prefix.dev/tim --generate-attestation --clean
