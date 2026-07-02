@@ -1,6 +1,8 @@
 use std::{path::Path, process::Command};
 
-use anyhow::{Context, Result, bail};
+use miette::{Result, bail};
+
+use crate::ResultContextExt;
 
 pub trait BrowserBackend {
     fn open(&self, url: &str) -> Result<()>;

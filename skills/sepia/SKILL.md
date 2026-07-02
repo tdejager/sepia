@@ -49,7 +49,11 @@ Use Sepia when you need browser-based PR evidence as a video.
 
 ## Config guidance
 
-Prefer readable step names and explicit timeline granularity for animations:
+Prefer readable step names and explicit timeline granularity for animations. Allowed step actions are `wait_ms`, `fill`, `scroll`, and `eval`. Use at most one per step. If your editor supports Taplo schema directives, point it at Sepia's schema:
+
+```toml
+#:schema /path/to/sepia/schemas/sepia-script.schema.json
+```
 
 ```toml
 [capture]

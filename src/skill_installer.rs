@@ -1,6 +1,8 @@
 use std::{fs, path::PathBuf};
 
-use anyhow::{Context, Result, bail};
+use miette::{Result, bail};
+
+use crate::ResultContextExt;
 use skill::{
     manager::SkillManager,
     types::{
@@ -76,7 +78,8 @@ pub async fn list_installed_skills(global: bool, agents: Vec<String>) -> Result<
             agent_filter,
             cwd: None,
         })
-        .await?;
+        .await
+        .context("failed to list installed skills")?;
     Ok(installed
         .into_iter()
         .map(|skill| format!("{} ({})", skill.name, skill.path.display()))
@@ -98,7 +101,8 @@ pub async fn remove_embedded_skill(global: bool, agents: Vec<String>) -> Result<
                 cwd: None,
             },
         )
-        .await?;
+        .await
+        .context("failed to remove Sepia skill")?;
     Ok(())
 }
 

@@ -1,6 +1,8 @@
 use std::{fs, path::Path};
 
-use anyhow::{Context, Result};
+use miette::Result;
+
+use crate::ResultContextExt;
 use html_escape::encode_text;
 
 use crate::{config::DemoConfig, session::SessionPaths, timeline::TimelinePlan};

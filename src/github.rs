@@ -1,6 +1,8 @@
 use std::{env, fs, path::Path, process::Command};
 
-use anyhow::{Context, Result, bail};
+use miette::{Result, bail};
+
+use crate::ResultContextExt;
 use base64::{Engine, engine::general_purpose::STANDARD};
 use reqwest::{Client, StatusCode, multipart};
 use serde::{Deserialize, Serialize};
@@ -132,7 +134,8 @@ pub async fn repo_info(
         token,
     )
     .send()
-    .await?;
+    .await
+    .context("failed to send GitHub request")?;
     ensure_success(response)
         .await?
         .json::<RepoResponse>()
@@ -184,7 +187,8 @@ pub async fn upload_user_attachment(
     }
     let part = multipart::Part::bytes(bytes)
         .file_name(name.to_string())
-        .mime_str(content_type_for(path))?;
+        .mime_str(content_type_for(path))
+        .context("failed to set upload content type")?;
     form = form.part("file", part);
 
     let upload = client
@@ -272,7 +276,8 @@ pub async fn upload_repo_content(
     )
     .json(&body)
     .send()
-    .await?;
+    .await
+    .context("failed to send GitHub request")?;
     ensure_success(response).await?;
 
     Ok(UploadedAsset {
@@ -309,7 +314,8 @@ async fn existing_content_sha(
         token,
     )
     .send()
-    .await?;
+    .await
+    .context("failed to send GitHub request")?;
     if response.status() == StatusCode::NOT_FOUND {
         return Ok(None);
     }
@@ -333,7 +339,10 @@ async fn ensure_artifacts_branch(
         repo.name,
         urlencoding::encode(artifacts_branch)
     );
-    let existing = github_request(client.get(&ref_url), token).send().await?;
+    let existing = github_request(client.get(&ref_url), token)
+        .send()
+        .await
+        .context("failed to send GitHub request")?;
     if existing.status().is_success() {
         return Ok(());
     }
@@ -352,7 +361,8 @@ async fn ensure_artifacts_branch(
         token,
     )
     .send()
-    .await?;
+    .await
+    .context("failed to send GitHub request")?;
     let default_ref = ensure_success(default_ref)
         .await?
         .json::<GitRefResponse>()
@@ -371,7 +381,8 @@ async fn ensure_artifacts_branch(
     )
     .json(&create)
     .send()
-    .await?;
+    .await
+    .context("failed to send GitHub request")?;
     ensure_success(response).await?;
     Ok(())
 }
@@ -413,7 +424,8 @@ pub async fn get_pr_body(
         token,
     )
     .send()
-    .await?;
+    .await
+    .context("failed to send GitHub request")?;
     let pull = ensure_success(response)
         .await?
         .json::<PullResponse>()
@@ -438,7 +450,8 @@ pub async fn update_pr_body(
     )
     .json(&CommentBody { body })
     .send()
-    .await?;
+    .await
+    .context("failed to send GitHub request")?;
     ensure_success(response).await?;
     Ok(())
 }
@@ -457,7 +470,8 @@ pub async fn list_pr_comments(
         token,
     )
     .send()
-    .await?;
+    .await
+    .context("failed to send GitHub request")?;
     let comments = ensure_success(response)
         .await?
         .json::<Vec<IssueCommentResponse>>()
@@ -488,7 +502,8 @@ pub async fn create_pr_comment(
     )
     .json(&CommentBody { body })
     .send()
-    .await?;
+    .await
+    .context("failed to send GitHub request")?;
     ensure_success(response).await?;
     Ok(())
 }
@@ -509,7 +524,8 @@ pub async fn update_pr_comment(
     )
     .json(&CommentBody { body })
     .send()
-    .await?;
+    .await
+    .context("failed to send GitHub request")?;
     ensure_success(response).await?;
     Ok(())
 }

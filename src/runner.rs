@@ -1,6 +1,8 @@
 use std::{fs, path::PathBuf, thread, time::Duration};
 
-use anyhow::{Context, Result};
+use miette::{Result, WrapErr};
+
+use crate::ResultContextExt;
 use chrono::Local;
 use serde::{Deserialize, Serialize};
 
@@ -72,7 +74,9 @@ where
         .encode(&paths.frames_dir, &paths.video, config.capture.output_fps)
         .context("failed to encode Sepia video")?;
 
-    fs::write(&paths.timeline_json, serde_json::to_string_pretty(&plan)?)
+    let timeline_json =
+        serde_json::to_string_pretty(&plan).context("failed to encode timeline JSON")?;
+    fs::write(&paths.timeline_json, timeline_json)
         .with_context(|| format!("failed to write {}", paths.timeline_json.display()))?;
     fs::write(&paths.timeline_md, render_timeline_markdown(&plan))
         .with_context(|| format!("failed to write {}", paths.timeline_md.display()))?;
@@ -272,7 +276,7 @@ mod tests {
             self.calls
                 .borrow_mut()
                 .push(format!("screenshot {}", path.display()));
-            fs::write(path, b"fake png")?;
+            fs::write(path, b"fake png").context("failed to write fake screenshot")?;
             Ok(())
         }
     }
@@ -281,7 +285,7 @@ mod tests {
 
     impl VideoEncoder for FakeEncoder {
         fn encode(&self, _frames_dir: &Path, output: &Path, _output_fps: u32) -> Result<()> {
-            fs::write(output, b"fake mp4")?;
+            fs::write(output, b"fake mp4").context("failed to write fake video")?;
             Ok(())
         }
     }

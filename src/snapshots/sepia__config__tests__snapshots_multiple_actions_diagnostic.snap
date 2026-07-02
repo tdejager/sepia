@@ -1,0 +1,17 @@
+---
+source: src/config.rs
+expression: render_config_error(&err)
+---
+sepia::config::invalid
+
+  x invalid Sepia demo config at demo.toml
+   ,-[demo.toml:7:11]
+ 6 | name = "Too much"
+ 7 | wait_ms = 10
+   :           ^|
+   :            `-- step `Too much` has multiple actions. Use exactly one of wait_ms, eval, fill, or scroll. `wait_ms` is one of the actions.
+ 8 | eval = "console.log(1)"
+   :         ^^^^^^^|^^^^^^
+   :                `-- step `Too much` has multiple actions. Use exactly one of wait_ms, eval, fill, or scroll. `eval` is one of the actions.
+   `----
+  help: Split separate browser actions into separate [[steps]] entries.

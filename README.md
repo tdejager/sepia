@@ -118,6 +118,12 @@ Sepia tracks the latest session, so `sepia inspect` can open the most recent run
 
 A Sepia script is TOML. Keep it readable: name the steps after what the reviewer should notice.
 
+Sepia ships a schema at [`schemas/sepia-script.schema.json`](schemas/sepia-script.schema.json). Editors powered by Taplo/Even Better TOML can use it with a top-of-file directive:
+
+```toml
+#:schema ./schemas/sepia-script.schema.json
+```
+
 ```toml
 name = "windowed-browse"
 description = "Windowed package and advisory browse"
@@ -156,7 +162,7 @@ Supported step actions:
 - `scroll`: scroll an element matched by a selector.
 - `eval`: run JavaScript in the page.
 
-Each step should use at most one action. Use `hold_ms`, `duration_ms`, and `frames` when the viewer needs more time to see what happened.
+Each step should use at most one action. Use `hold_ms`, `duration_ms`, and `frames` when the viewer needs more time to see what happened. Sepia also rejects unknown TOML fields at runtime, so schema validation and `sepia run` agree on the allowed keys. Invalid scripts are reported with source spans that point at the problematic TOML.
 
 </details>
 

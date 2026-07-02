@@ -1,0 +1,262 @@
+{
+  "$defs": {
+    "CaptureConfig": {
+      "additionalProperties": false,
+      "description": "Capture timing and output settings.",
+      "properties": {
+        "default_action_ms": {
+          "default": 400,
+          "description": "Default animated action duration when duration_ms is omitted.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "default_hold_ms": {
+          "default": 700,
+          "description": "Default hold after a step when hold_ms is omitted.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "output_fps": {
+          "default": 24,
+          "description": "Frames per second in the generated MP4.",
+          "format": "uint32",
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "FillConfig": {
+      "additionalProperties": false,
+      "description": "Input fill action.",
+      "properties": {
+        "selector": {
+          "description": "CSS selector for the input to fill.",
+          "type": "string"
+        },
+        "text": {
+          "description": "Text to enter into the matched input.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "selector",
+        "text"
+      ],
+      "type": "object"
+    },
+    "ScrollConfig": {
+      "additionalProperties": false,
+      "description": "Element scroll action.",
+      "properties": {
+        "pixels": {
+          "description": "Vertical pixels to scroll. Negative values scroll upward.",
+          "format": "int64",
+          "type": "integer"
+        },
+        "selector": {
+          "description": "CSS selector for the element to scroll.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "selector",
+        "pixels"
+      ],
+      "type": "object"
+    },
+    "StepConfig": {
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "wait_ms",
+                  "eval"
+                ]
+              },
+              {
+                "required": [
+                  "wait_ms",
+                  "fill"
+                ]
+              },
+              {
+                "required": [
+                  "wait_ms",
+                  "scroll"
+                ]
+              },
+              {
+                "required": [
+                  "eval",
+                  "fill"
+                ]
+              },
+              {
+                "required": [
+                  "eval",
+                  "scroll"
+                ]
+              },
+              {
+                "required": [
+                  "fill",
+                  "scroll"
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "description": "A named script step. Use at most one action: wait_ms, eval, fill, or scroll.",
+      "properties": {
+        "duration_ms": {
+          "default": null,
+          "description": "Milliseconds used to animate an action such as scrolling.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "eval": {
+          "default": null,
+          "description": "JavaScript to evaluate in the page.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "fill": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FillConfig"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Fill an input matched by selector."
+        },
+        "frames": {
+          "default": null,
+          "description": "Explicit number of frames to capture for this step.",
+          "format": "uint32",
+          "minimum": 1,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "hold_ms": {
+          "default": null,
+          "description": "Milliseconds to hold the resulting state for viewers.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "name": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "type": "string"
+        },
+        "screenshot": {
+          "default": false,
+          "description": "Whether to save a screenshot after this step.",
+          "type": "boolean"
+        },
+        "scroll": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ScrollConfig"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Scroll an element matched by selector."
+        },
+        "wait_ms": {
+          "default": null,
+          "description": "Wait for this many milliseconds before capturing the state.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://github.com/tdejager/sepia/schemas/sepia-script.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Sepia browser demo script TOML configuration.",
+  "properties": {
+    "capture": {
+      "$ref": "#/$defs/CaptureConfig",
+      "default": {
+        "default_action_ms": 400,
+        "default_hold_ms": 700,
+        "output_fps": 24
+      }
+    },
+    "description": {
+      "default": null,
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "name": {
+      "description": "Human-readable demo name.",
+      "minLength": 1,
+      "pattern": "\\S",
+      "type": "string"
+    },
+    "session": {
+      "default": null,
+      "description": "Optional stable session name used for output directories.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "steps": {
+      "default": [],
+      "description": "Ordered browser actions and captured moments.",
+      "items": {
+        "$ref": "#/$defs/StepConfig"
+      },
+      "type": "array"
+    },
+    "url": {
+      "description": "Initial browser URL to open before running the script.",
+      "minLength": 1,
+      "pattern": "\\S",
+      "type": "string"
+    }
+  },
+  "required": [
+    "name",
+    "url"
+  ],
+  "title": "DemoConfig",
+  "type": "object"
+}

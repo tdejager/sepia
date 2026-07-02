@@ -1,6 +1,8 @@
 use std::{path::Path, process::Command};
 
-use anyhow::{Context, Result, bail};
+use miette::{Result, bail};
+
+use crate::ResultContextExt;
 
 use crate::browser::shellish_join;
 

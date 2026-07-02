@@ -1,0 +1,5 @@
+[[rule]]
+include = ["examples/*.toml"]
+
+[rule.schema]
+path = "schemas/sepia-script.schema.json"

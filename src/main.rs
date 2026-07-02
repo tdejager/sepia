@@ -1,10 +1,11 @@
 use std::{fs, io, path::PathBuf, process::Command as ProcessCommand};
 
-use anyhow::{Context, Result, bail};
 use arboard::Clipboard;
 use clap::{Args, Parser, Subcommand};
+use miette::{Result, bail};
 use regex::Regex;
 use sepia::{
+    ResultContextExt,
     browser::AgentBrowserBackend,
     config::DemoConfig,
     encoder::FfmpegCliEncoder,
@@ -125,7 +126,8 @@ struct SkillRemoveArgs {
 }
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() -> miette::Result<()> {
+    install_miette_hook();
     let cli = Cli::parse();
     if !matches!(cli.command, Command::Skill(_)) {
         maybe_print_skill_install_tip().await;
@@ -139,13 +141,24 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
+fn install_miette_hook() {
+    let _ = miette::set_hook(Box::new(|_| {
+        Box::new(
+            miette::MietteHandlerOpts::new()
+                .terminal_links(false)
+                .unicode(true)
+                .build(),
+        )
+    }));
+}
+
 async fn maybe_print_skill_install_tip() {
     if let Some(tip) = sepia_skill_install_tip().await {
         eprintln!("{tip}");
     }
 }
 
-fn run(args: RunArgs) -> Result<()> {
+fn run(args: RunArgs) -> miette::Result<()> {
     let config = DemoConfig::from_path(&args.config)?;
     let output_root = args.output_root.map_or_else(default_output_root, Ok)?;
     let session = config
@@ -253,7 +266,9 @@ fn prompt_for_attachment_url(
     println!("\nPaste that URL here and press Enter:");
 
     let mut input = String::new();
-    io::stdin().read_line(&mut input)?;
+    io::stdin()
+        .read_line(&mut input)
+        .context("failed to read attachment URL from stdin")?;
     extract_attachment_url(&input).context("no GitHub user-attachments URL found in input")
 }
 

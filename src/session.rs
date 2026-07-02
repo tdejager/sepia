@@ -1,6 +1,8 @@
 use std::{fs, path::PathBuf};
 
-use anyhow::{Context, Result};
+use miette::Result;
+
+use crate::ResultContextExt;
 use chrono::{DateTime, Local};
 use directories::UserDirs;
 use serde::{Deserialize, Serialize};
@@ -77,7 +79,8 @@ pub fn write_latest(output_root: PathBuf, session_root: PathBuf) -> Result<()> {
     let latest = LatestSession {
         latest_session: session_root,
     };
-    let text = serde_json::to_string_pretty(&latest)?;
+    let text =
+        serde_json::to_string_pretty(&latest).context("failed to encode latest session pointer")?;
     fs::write(latest_file(output_root), text).context("failed to write latest session pointer")
 }
 

@@ -1,6 +1,8 @@
 use std::{future::Future, path::Path, pin::Pin};
 
-use anyhow::{Context, Result};
+use miette::Result;
+
+use crate::ResultContextExt;
 use reqwest::Client;
 
 use crate::github::{GitHubRepo, UploadedAsset, upload_repo_content, upload_user_attachment};
@@ -104,7 +106,9 @@ fn local_file_url(path: &Path) -> Result<String> {
     let absolute = if path.is_absolute() {
         path.to_path_buf()
     } else {
-        std::env::current_dir()?.join(path)
+        std::env::current_dir()
+            .context("failed to read current directory")?
+            .join(path)
     };
     Ok(format!("file://{}", absolute.display()))
 }

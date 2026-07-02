@@ -1,6 +1,8 @@
 use std::{fs, path::PathBuf};
 
-use anyhow::{Context, Result};
+use miette::Result;
+
+use crate::ResultContextExt;
 use chrono::{DateTime, Local};
 use serde::{Deserialize, Serialize};
 
@@ -58,7 +60,9 @@ impl SessionMetadata {
 }
 
 pub fn write_session_metadata(paths: &SessionPaths, metadata: &SessionMetadata) -> Result<()> {
-    fs::write(&paths.session_json, serde_json::to_string_pretty(metadata)?)
+    let text =
+        serde_json::to_string_pretty(metadata).context("failed to encode session metadata")?;
+    fs::write(&paths.session_json, text)
         .with_context(|| format!("failed to write {}", paths.session_json.display()))
 }
 
