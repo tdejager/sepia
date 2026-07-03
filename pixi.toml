@@ -28,7 +28,7 @@ package-local = "pixi publish --target-dir dist/conda"
 
 [package]
 name = "sepia"
-version = "0.1.2"
+version = "0.2.0"
 
 [package.build.backend]
 name = "pixi-build-rust"
