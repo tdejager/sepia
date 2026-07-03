@@ -6,6 +6,10 @@ platforms = ["osx-arm64", "osx-64", "linux-64", "win-64"]
 [dependencies]
 sepia = { path = "." }
 ffmpeg = "*"
+# conda-forge ffmpeg links libjxl.0.11 but only declares `libjxl >=0.11,<1.0a0`,
+# so an unpinned solve installs the ABI-incompatible 0.12 and ffmpeg fails to
+# load. Drop this pin once conda-forge rebuilds ffmpeg against libjxl 0.12.
+libjxl = "0.11.*"
 agent-browser = "*"
 
 [tasks]
@@ -33,4 +37,6 @@ channels = ["https://prefix.dev/conda-forge"]
 
 [package.run-dependencies]
 ffmpeg = "*"
+# Same libjxl ABI guard as above; remove when conda-forge ffmpeg is rebuilt.
+libjxl = "0.11.*"
 agent-browser = "*"

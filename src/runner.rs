@@ -50,6 +50,10 @@ where
 
     let created_at = Local::now();
     let paths = SessionPaths::create(output_root.clone(), &config.name, created_at)?;
+    // Point latest.json at this session immediately: a run that fails partway
+    // must not leave tooling (`sepia pr`, `sepia inspect`) silently resolving
+    // to an older session's video.
+    write_latest(output_root, paths.root.clone())?;
     let plan = TimelineCompiler::compile(config);
     let mut screenshots = Vec::new();
     let mut capture = FrameCapture::new(&paths, progress);
@@ -109,17 +113,6 @@ where
         });
     }
 
-    progress.encoding(
-        paths
-            .video
-            .file_name()
-            .and_then(|name| name.to_str())
-            .unwrap_or("demo.mp4"),
-    );
-    encoder
-        .encode(&paths.frames_dir, &paths.video, config.capture.output_fps)
-        .context("failed to encode Sepia video")?;
-
     let timeline_json =
         serde_json::to_string_pretty(&plan).context("failed to encode timeline JSON")?;
     fs::write(&paths.timeline_json, timeline_json)
@@ -148,7 +141,19 @@ where
         render_pr_comment(&pr_data_from_metadata(&metadata, None, &[])),
     )
     .with_context(|| format!("failed to write {}", paths.pr_comment_md.display()))?;
-    write_latest(output_root, paths.root.clone())?;
+
+    // Encode last: if ffmpeg fails, the session still has its frames, metadata,
+    // and the latest.json pointer, so the video can be re-encoded afterwards.
+    progress.encoding(
+        paths
+            .video
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("demo.mp4"),
+    );
+    encoder
+        .encode(&paths.frames_dir, &paths.video, config.capture.output_fps)
+        .context("failed to encode Sepia video")?;
 
     drop(capture);
 

@@ -166,6 +166,62 @@ exit 42
     );
 }
 
+#[test]
+fn cli_run_with_failing_ffmpeg_still_points_latest_at_new_session() {
+    let temp = tempdir().unwrap();
+    let bin_dir = temp.path().join("bin");
+    fs::create_dir(&bin_dir).unwrap();
+    let log = temp.path().join("commands.log");
+
+    write_fake_agent_browser(&bin_dir.join("agent-browser"));
+    // Simulate the bundled ffmpeg crashing at encode time (e.g. a missing dylib).
+    write_executable(
+        &bin_dir.join("ffmpeg"),
+        r#"#!/bin/sh
+echo "ffmpeg $@" >> "$SEPIA_FAKE_LOG"
+echo "dyld: Library not loaded: @rpath/libjxl.0.11.dylib" >&2
+exit 1
+"#,
+    );
+
+    let output_root = temp.path().join("out");
+    let stale_session = output_root.join("2026-01-01-000000-older-demo");
+    fs::create_dir_all(&stale_session).unwrap();
+    fs::write(
+        output_root.join("latest.json"),
+        serde_json::json!({ "latest_session": stale_session }).to_string(),
+    )
+    .unwrap();
+
+    Command::cargo_bin("sepia")
+        .unwrap()
+        .args([
+            "run",
+            "examples/basilisk-windowed-browse.toml",
+            "--output-root",
+            output_root.to_str().unwrap(),
+        ])
+        .env("PATH", fake_path_with(&bin_dir))
+        .env("SEPIA_FAKE_LOG", &log)
+        .assert()
+        .failure();
+
+    let latest = fs::read_to_string(output_root.join("latest.json")).unwrap();
+    let latest: serde_json::Value = serde_json::from_str(&latest).unwrap();
+    let session = Path::new(latest["latest_session"].as_str().unwrap());
+
+    assert_ne!(
+        session, stale_session,
+        "latest.json still points at the older session"
+    );
+    // Everything except the video should survive a failed encode, so the
+    // frames can be encoded manually afterwards.
+    assert!(session.join("frames").exists());
+    assert!(session.join("session.json").exists());
+    assert!(session.join("pr-comment.md").exists());
+    assert!(!session.join("demo.mp4").exists());
+}
+
 fn write_fake_agent_browser(path: &Path) {
     write_executable(
         path,
