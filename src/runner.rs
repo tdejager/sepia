@@ -134,13 +134,15 @@ where
     let frame_count = capture.frame_count();
     let metadata =
         SessionMetadata::from_capture(config, &paths, created_at, frame_count, screenshots, steps);
-    write_inspect_html(&paths, &metadata)?;
-    write_session_metadata(&paths, &metadata)?;
+    // The inspect page embeds the PR block, so the comment file must exist
+    // before the page is rendered.
     fs::write(
         &paths.pr_comment_md,
         render_pr_comment(&pr_data_from_metadata(&metadata, None, &[])),
     )
     .with_context(|| format!("failed to write {}", paths.pr_comment_md.display()))?;
+    write_inspect_html(&paths, &metadata)?;
+    write_session_metadata(&paths, &metadata)?;
 
     // Encode last: if ffmpeg fails, the session still has its frames, metadata,
     // and the latest.json pointer, so the video can be re-encoded afterwards.
