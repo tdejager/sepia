@@ -19,6 +19,10 @@ output_fps = 24
 default_hold_ms = 700
 default_action_ms = 400
 
+[browser]
+width = 1440
+height = 1000
+
 [[steps]]
 name = "Front page loads"
 wait_ms = 1200
@@ -27,6 +31,7 @@ screenshot = true
 
 [[steps]]
 name = "Scroll the ranked stories"
+wait_for = { selector = ".titleline > a" }
 # Hacker News renders in quirks mode, so the scrolling element is <body>.
 scroll = { selector = "body", pixels = 500 }
 duration_ms = 1600
@@ -36,6 +41,7 @@ screenshot = true
 
 [[steps]]
 name = "Highlight result #15"
+wait_for = { selector = ".titleline > a" }
 eval = "const a = document.querySelectorAll('.titleline > a')[14]; a.scrollIntoView({ block: 'center' }); a.style.outline = '3px solid #d65d0e'; a.style.background = '#ffe8ad';"
 hold_ms = 1400
 screenshot = true

@@ -9,6 +9,14 @@ pub trait BrowserBackend {
     fn eval(&self, js: &str) -> Result<()>;
     fn fill(&self, selector: &str, text: &str) -> Result<()>;
     fn screenshot(&self, path: &Path) -> Result<()>;
+    /// Set the browser viewport before navigation so responsive layouts are deterministic.
+    fn set_viewport(&self, _width: u32, _height: u32) -> Result<()> {
+        Ok(())
+    }
+    /// Wait for a selector before a step/action. Defaults to a no-op for tests/custom backends.
+    fn wait_for_selector(&self, _selector: &str) -> Result<()> {
+        Ok(())
+    }
     /// Check the backend is ready before a capture starts. Defaults to a no-op.
     fn preflight(&self) -> Result<()> {
         Ok(())
@@ -71,6 +79,19 @@ impl BrowserBackend for AgentBrowserBackend {
 
     fn screenshot(&self, path: &Path) -> Result<()> {
         self.run(&["screenshot".into(), path.display().to_string()])
+    }
+
+    fn set_viewport(&self, width: u32, height: u32) -> Result<()> {
+        self.run(&[
+            "set".into(),
+            "viewport".into(),
+            width.to_string(),
+            height.to_string(),
+        ])
+    }
+
+    fn wait_for_selector(&self, selector: &str) -> Result<()> {
+        self.run(&["wait".into(), selector.into()])
     }
 
     fn preflight(&self) -> Result<()> {

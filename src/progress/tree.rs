@@ -13,7 +13,7 @@ use std::time::Instant;
 use owo_colors::{OwoColorize, Stream::Stderr};
 
 use super::ProgressReporter;
-use crate::timeline::{PlanTree, frames_label, kind_rgb, kind_word};
+use crate::timeline::{PlanTree, frames_label, kind_rgb, kind_word, phase_detail};
 
 const SPINNER: [&str; 8] = ["⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"];
 const GB_GREEN: (u8, u8, u8) = (152, 151, 26);
@@ -161,7 +161,7 @@ impl TreeReporter {
                     "{stem} {twig} {}  {}",
                     format!("{:<7}", kind_word(&phase.kind))
                         .if_supports_color(Stderr, |t| t.truecolor(prgb.0, prgb.1, prgb.2)),
-                    format!("{} · {:.1}s", frames_label(phase.frames), phase.secs)
+                    phase_detail(&phase.kind, phase.frames, phase.secs, phase.duration_ms)
                         .if_supports_color(Stderr, |t| t.dimmed()),
                 ));
             }
@@ -328,6 +328,7 @@ mod tests {
                         kind: SegmentKind::Hold,
                         frames: 13,
                         secs: 0.5,
+                        duration_ms: 500,
                     }],
                 },
                 PlanStep {
@@ -339,6 +340,7 @@ mod tests {
                         kind: SegmentKind::Scroll,
                         frames: 17,
                         secs: 0.7,
+                        duration_ms: 700,
                     }],
                 },
             ],

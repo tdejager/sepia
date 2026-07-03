@@ -1,6 +1,6 @@
 ---
 name: sepia
-description: Capture browser change videos as color-correct MP4s for PR evidence without committing binary assets. Use when an agent needs to script browser interactions, preview and run a capture plan, inspect the result, iterate with the human, and update a PR with a GitHub attachment video URL.
+description: Capture browser change videos as GitHub-friendly MP4s for PR evidence without committing binary assets. Use when an agent needs to script browser interactions, preview and run a capture plan, inspect the result, iterate with the human, and update a PR with a GitHub attachment video URL.
 ---
 
 # Sepia
@@ -47,17 +47,23 @@ Use Sepia when you need browser-based PR evidence as a video.
    sepia pr --dry-run --video-url https://github.com/user-attachments/assets/...
    ```
 
-8. After approval, update the PR description inline:
+8. After approval, update the PR description inline with one of these flows:
 
    ```bash
    sepia pr --attach --repo OWNER/REPO --pr NUMBER
    ```
 
-   The attach flow copies the MP4 path to the clipboard, asks the human to upload it through GitHub's web UI, then uses the pasted `user-attachments` URL in the PR description. Non-dry-run PR updates require a `https://github.com/user-attachments/assets/...` video URL.
+   `--attach` reveals `demo.mp4`, opens the PR page when repo and PR are known, asks the human to upload the file through GitHub's web UI, then uses the pasted `user-attachments` URL in the PR description.
+
+   ```bash
+   sepia pr --grab --repo OWNER/REPO --pr NUMBER
+   ```
+
+   `--grab` is useful when the human already dragged `demo.mp4` into the PR description and saved it. Sepia reads the PR description, finds the fresh `user-attachments` URL, removes the raw URL line, and wraps the video in the Sepia block. Non-dry-run PR updates require a `https://github.com/user-attachments/assets/...` video URL.
 
 ## Config guidance
 
-Prefer readable step names and explicit timeline granularity for animations. Allowed step actions are `wait_ms`, `fill`, `scroll`, `click`, and `eval`. Use at most one per step. Prefer `click` over an `eval` click when possible so Sepia can show a visible click cue. If your editor supports Taplo schema directives, point it at Sepia's schema:
+Prefer readable step names, a pinned viewport, explicit timeline granularity for animations, and selector waits for async UI. Sepia overlays each step name in the video by default so the reviewer knows what to notice; set `capture.show_step_labels = false` only when the overlay would hide the UI being demonstrated. Allowed step actions are `wait_ms`, `fill`, `scroll`, `click`, and `eval`. Use at most one per step. `wait_for = { selector = "..." }` is a precondition, not an action. Sepia also implicitly waits for `fill`, `scroll`, and `click` targets. Prefer `click` over an `eval` click when possible so Sepia can show a visible click cue. If your editor supports Taplo schema directives, point it at Sepia's schema:
 
 ```toml
 #:schema /path/to/sepia/schemas/sepia-script.schema.json
@@ -68,9 +74,15 @@ Prefer readable step names and explicit timeline granularity for animations. All
 output_fps = 24
 default_hold_ms = 700
 default_action_ms = 400
+show_step_labels = true
+
+[browser]
+width = 1440
+height = 1000
 
 [[steps]]
 name = "Scroll package list"
+wait_for = { selector = ".package-list" }
 scroll = { selector = ".package-list", pixels = 900 }
 duration_ms = 1600
 frames = 32

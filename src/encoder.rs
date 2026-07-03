@@ -52,6 +52,17 @@ impl FfmpegCliEncoder {
             self.crf.to_string(),
             "-pix_fmt".into(),
             "yuv420p".into(),
+            // Browser screenshots arrive as RGB PNGs, while GitHub-friendly H.264
+            // MP4s are YUV. Keep the compatible pixel format, but explicitly
+            // signal BT.709 video metadata so players do not have to guess.
+            "-color_primaries".into(),
+            "bt709".into(),
+            "-color_trc".into(),
+            "bt709".into(),
+            "-colorspace".into(),
+            "bt709".into(),
+            "-color_range".into(),
+            "tv".into(),
             "-movflags".into(),
             "+faststart".into(),
             output.display().to_string(),
@@ -104,5 +115,9 @@ mod tests {
         assert!(args.contains(&"24".to_string()));
         assert!(args.contains(&"libx264".to_string()));
         assert!(args.contains(&"yuv420p".to_string()));
+        assert!(args.contains(&"-color_primaries".to_string()));
+        assert!(args.contains(&"bt709".to_string()));
+        assert!(args.contains(&"-color_range".to_string()));
+        assert!(args.contains(&"tv".to_string()));
     }
 }

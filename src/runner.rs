@@ -55,6 +55,14 @@ where
     let mut capture = FrameCapture::new(&paths, progress);
 
     progress.started(&config.name, config.steps.len(), config.capture.output_fps);
+    browser
+        .set_viewport(config.browser.width, config.browser.height)
+        .with_context(|| {
+            format!(
+                "failed to set browser viewport to {}x{}",
+                config.browser.width, config.browser.height
+            )
+        })?;
     progress.opening(&config.url);
     browser.open(&config.url)?;
     capture
@@ -66,7 +74,7 @@ where
     for (index, step) in config.steps.iter().enumerate() {
         progress.step(index + 1, total_steps, step.kind().label(), &step.name);
         let start_frame = capture.next_frame;
-        execute_step(step, config, &mut capture, browser)
+        execute_step(index + 1, total_steps, step, config, &mut capture, browser)
             .with_context(|| format!("failed while executing step `{}`", step.name))?;
         let hold_frames =
             frames_for_duration(step.hold_ms(&config.capture), config.capture.output_fps);
@@ -149,6 +157,8 @@ where
 }
 
 fn execute_step<B>(
+    step_number: usize,
+    total_steps: usize,
     step: &StepConfig,
     config: &DemoConfig,
     capture: &mut FrameCapture<'_>,
@@ -157,21 +167,37 @@ fn execute_step<B>(
 where
     B: BrowserBackend,
 {
+    if let Some(wait_for) = &step.wait_for {
+        browser
+            .wait_for_selector(&wait_for.selector)
+            .with_context(|| format!("timed out waiting for `{}`", wait_for.selector))?;
+    }
+    show_step_label(browser, config, step_number, total_steps, step);
+
     if let Some(wait_ms) = step.wait_ms {
         sleep_ms(wait_ms);
+        show_step_label(browser, config, step_number, total_steps, step);
         capture.capture_frame(browser)?;
     } else if let Some(js) = &step.eval {
         browser.eval(js)?;
         sleep_ms(step.action_ms(&config.capture));
+        show_step_label(browser, config, step_number, total_steps, step);
         capture.capture_frame(browser)?;
     } else if let Some(fill) = &step.fill {
+        browser
+            .wait_for_selector(&fill.selector)
+            .with_context(|| format!("timed out waiting for fill target `{}`", fill.selector))?;
         // Ring the input so viewers see where the text lands, then fill it.
         browser.eval(&fill_cue_js(&fill.selector))?;
         capture.capture_over(browser, FILL_CUE_MS, config.capture.output_fps)?;
         browser.fill(&fill.selector, &fill.text)?;
         sleep_ms(step.action_ms(&config.capture));
+        show_step_label(browser, config, step_number, total_steps, step);
         capture.capture_frame(browser)?;
     } else if let Some(click) = &step.click {
+        browser
+            .wait_for_selector(&click.selector)
+            .with_context(|| format!("timed out waiting for click target `{}`", click.selector))?;
         // Pulse a ripple at the target and capture a few frames of it, so the
         // click is visible in the video, then fire the (fire-and-forget) click.
         let index = click.index.unwrap_or(0);
@@ -179,8 +205,14 @@ where
         capture.capture_over(browser, CLICK_CUE_MS, config.capture.output_fps)?;
         browser.eval(&click_js(&click.selector, index))?;
         sleep_ms(step.action_ms(&config.capture));
+        show_step_label(browser, config, step_number, total_steps, step);
         capture.capture_frame(browser)?;
     } else if let Some(scroll) = &step.scroll {
+        browser
+            .wait_for_selector(&scroll.selector)
+            .with_context(|| {
+                format!("timed out waiting for scroll target `{}`", scroll.selector)
+            })?;
         let duration_ms = step.action_ms(&config.capture);
         let frames = step
             .frames
@@ -199,12 +231,73 @@ where
             capture.capture_frame(browser)?;
         }
     } else {
+        show_step_label(browser, config, step_number, total_steps, step);
         capture.capture_frame(browser)?;
     }
 
     let hold_frames = frames_for_duration(step.hold_ms(&config.capture), config.capture.output_fps);
     capture.duplicate_last_frame(hold_frames)?;
     Ok(())
+}
+
+fn show_step_label<B>(
+    browser: &B,
+    config: &DemoConfig,
+    step_number: usize,
+    total_steps: usize,
+    step: &StepConfig,
+) where
+    B: BrowserBackend,
+{
+    if config.capture.show_step_labels {
+        // This is context for the reviewer, not a capture precondition. Never
+        // fail the run just because a page navigated while we were drawing it.
+        let _ = browser.eval(&step_label_js(
+            step_number,
+            total_steps,
+            step.kind().label(),
+            &step.name,
+        ));
+    }
+}
+
+fn step_label_js(step_number: usize, total_steps: usize, kind: &str, name: &str) -> String {
+    let progress_json = serde_json::to_string(&format!("{step_number:02}/{total_steps:02}"))
+        .expect("step progress should serialize");
+    let kind_json = serde_json::to_string(kind).expect("step kind should serialize");
+    let name_json = serde_json::to_string(name).expect("step name should serialize");
+    format!(
+        r#"(() => {{
+  const id = 'sepia-step-label';
+  let root = document.getElementById(id);
+  if (!root) {{
+    root = document.createElement('div');
+    root.id = id;
+    Object.assign(root.style, {{
+      position: 'fixed', left: '18px', bottom: '18px', zIndex: '2147483647',
+      maxWidth: 'min(620px, calc(100vw - 36px))', padding: '10px 13px',
+      borderRadius: '12px', border: '2px solid rgba(60,56,54,.72)',
+      background: 'rgba(251,241,199,.94)', color: '#3c3836',
+      boxShadow: '0 10px 30px rgba(60,56,54,.28)', pointerEvents: 'none',
+      fontFamily: 'ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+      lineHeight: '1.25', backdropFilter: 'blur(3px)'
+    }});
+    root.innerHTML = '<div data-sepia-meta></div><div data-sepia-name></div>';
+    document.body.appendChild(root);
+  }}
+  const meta = root.querySelector('[data-sepia-meta]');
+  const title = root.querySelector('[data-sepia-name]');
+  Object.assign(meta.style, {{
+    marginBottom: '3px', fontSize: '11px', fontWeight: '800', letterSpacing: '.08em',
+    textTransform: 'uppercase', color: '#af3a03'
+  }});
+  Object.assign(title.style, {{
+    fontSize: '17px', fontWeight: '800', color: '#3c3836'
+  }});
+  meta.textContent = {progress_json} + ' · ' + {kind_json};
+  title.textContent = {name_json};
+}})()"#
+    )
 }
 
 fn scroll_js(selector: &str, pixels: f64) -> String {
@@ -391,7 +484,7 @@ mod tests {
     use tempfile::tempdir;
 
     use crate::{
-        config::{CaptureConfig, FillConfig},
+        config::{BrowserConfig, CaptureConfig, FillConfig},
         encoder::VideoEncoder,
     };
 
@@ -427,6 +520,18 @@ mod tests {
             fs::write(path, b"fake png").context("failed to write fake screenshot")?;
             Ok(())
         }
+
+        fn set_viewport(&self, width: u32, height: u32) -> Result<()> {
+            self.calls
+                .borrow_mut()
+                .push(format!("set viewport {width} {height}"));
+            Ok(())
+        }
+
+        fn wait_for_selector(&self, selector: &str) -> Result<()> {
+            self.calls.borrow_mut().push(format!("wait {selector}"));
+            Ok(())
+        }
     }
 
     struct FakeEncoder;
@@ -450,6 +555,11 @@ mod tests {
                 output_fps: 10,
                 default_hold_ms: 100,
                 default_action_ms: 0,
+                show_step_labels: true,
+            },
+            browser: BrowserConfig {
+                width: 1200,
+                height: 800,
             },
             steps: vec![StepConfig {
                 name: "Search".into(),
@@ -461,6 +571,7 @@ mod tests {
                 }),
                 scroll: None,
                 click: None,
+                wait_for: None,
                 hold_ms: Some(100),
                 duration_ms: Some(0),
                 frames: None,
@@ -483,6 +594,20 @@ mod tests {
         assert!(run.paths.timeline_json.exists());
         assert!(run.paths.pr_comment_md.exists());
         assert!(run.frame_count >= 3);
+        assert!(
+            browser
+                .calls
+                .borrow()
+                .iter()
+                .any(|call| call == "set viewport 1200 800")
+        );
+        assert!(
+            browser
+                .calls
+                .borrow()
+                .iter()
+                .any(|call| call == "wait input")
+        );
         assert!(
             browser
                 .calls

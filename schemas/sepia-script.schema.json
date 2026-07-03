@@ -1,5 +1,26 @@
 {
   "$defs": {
+    "BrowserConfig": {
+      "additionalProperties": false,
+      "description": "Browser viewport settings for deterministic captures.",
+      "properties": {
+        "height": {
+          "default": 1000,
+          "description": "Viewport height in CSS pixels.",
+          "format": "uint32",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "width": {
+          "default": 1440,
+          "description": "Viewport width in CSS pixels.",
+          "format": "uint32",
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
     "CaptureConfig": {
       "additionalProperties": false,
       "description": "Capture timing and output settings.",
@@ -24,6 +45,11 @@
           "format": "uint32",
           "minimum": 1,
           "type": "integer"
+        },
+        "show_step_labels": {
+          "default": true,
+          "description": "Whether to overlay each step name in the recorded video so reviewers know what to notice.",
+          "type": "boolean"
         }
       },
       "type": "object"
@@ -247,6 +273,18 @@
           "default": null,
           "description": "Scroll an element matched by selector."
         },
+        "wait_for": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WaitForConfig"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Wait for a selector before running this step. Does not count as the step action."
+        },
         "wait_ms": {
           "default": null,
           "description": "Wait for this many milliseconds before capturing the state.",
@@ -262,6 +300,20 @@
         "name"
       ],
       "type": "object"
+    },
+    "WaitForConfig": {
+      "additionalProperties": false,
+      "description": "Selector precondition for a step.",
+      "properties": {
+        "selector": {
+          "description": "CSS selector to wait for before running the step.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "selector"
+      ],
+      "type": "object"
     }
   },
   "$id": "https://github.com/tdejager/sepia/schemas/sepia-script.schema.json",
@@ -269,12 +321,21 @@
   "additionalProperties": false,
   "description": "Sepia browser demo script TOML configuration.",
   "properties": {
+    "browser": {
+      "$ref": "#/$defs/BrowserConfig",
+      "default": {
+        "height": 1000,
+        "width": 1440
+      },
+      "description": "Browser settings used to make recordings deterministic."
+    },
     "capture": {
       "$ref": "#/$defs/CaptureConfig",
       "default": {
         "default_action_ms": 400,
         "default_hold_ms": 700,
-        "output_fps": 24
+        "output_fps": 24,
+        "show_step_labels": true
       }
     },
     "description": {

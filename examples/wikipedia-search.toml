@@ -17,6 +17,10 @@ output_fps = 24
 default_hold_ms = 700
 default_action_ms = 400
 
+[browser]
+width = 1440
+height = 1000
+
 [[steps]]
 name = "Main page loads"
 wait_ms = 1200
@@ -25,6 +29,7 @@ screenshot = true
 
 [[steps]]
 name = "Type a search query"
+wait_for = { selector = "#searchInput" }
 fill = { selector = "#searchInput", text = "Cuttlefish" }
 hold_ms = 1300
 screenshot = true
@@ -39,6 +44,7 @@ screenshot = true
 
 [[steps]]
 name = "Scroll the article"
+wait_for = { selector = "#mw-content-text" }
 # Wikipedia is a standards-mode page, so the document scrolls via <html>.
 scroll = { selector = "html", pixels = 900 }
 duration_ms = 1600

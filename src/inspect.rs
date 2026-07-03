@@ -48,7 +48,7 @@ pub fn render_inspect_html(paths: &SessionPaths, metadata: &SessionMetadata) -> 
             "<span class=\"badge\"><b>{}</b> FPS</span>",
             "<span class=\"badge\"><b>{}</b> FRAMES</span>",
             "<span class=\"badge\"><b>{:.1}</b>S</span>",
-            "<span class=\"badge\">COLOR-CORRECT</span>",
+            "<span class=\"badge\">MP4</span>",
         ),
         metadata.steps.len(),
         metadata.output_fps,
@@ -145,11 +145,14 @@ pub fn render_inspect_html(paths: &SessionPaths, metadata: &SessionMetadata) -> 
       <div class="paths">{paths_html}</div>
     </div>
 
-    <div class="card note-card">
-      <div class="title"><span class="dot"></span>Tell the agent what to tweak</div>
+    <div class="card share-card">
+      <div class="title"><span class="dot"></span>Ready for PR</div>
       <p class="desc">{description}</p>
-      <textarea>Changes needed:
-- </textarea>
+      <ol class="next">
+        <li>Watch the recording and jump through the steps.</li>
+        <li>If it needs changes, tell the agent what to adjust and rerun.</li>
+        <li>If it looks good, attach <code>demo.mp4</code> to the PR with <code>sepia pr --attach</code> or <code>sepia pr --grab</code>.</li>
+      </ol>
     </div>
   </div>
 
@@ -265,7 +268,8 @@ mod tests {
         let paths = SessionPaths::from_root(PathBuf::from("/tmp/sepia/demo"));
         let html = render_inspect_html(&paths, &sample_metadata());
         assert!(html.contains("<video"));
-        assert!(html.contains("Changes needed:"));
+        assert!(html.contains("Ready for PR"));
+        assert!(!html.contains("Changes needed:"));
     }
 
     #[test]

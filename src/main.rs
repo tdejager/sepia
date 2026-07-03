@@ -36,7 +36,8 @@ use sepia::{
         sepia run examples/hacker-news-browse.toml   # record a demo (opens inspect when interactive)\n  \
         sepia run demo.toml --plan                   # preview the capture plan as a tree, no recording\n  \
         sepia inspect                                # open the latest capture's inspect page\n  \
-        sepia pr --attach --repo owner/name --pr 12  # attach the demo to a GitHub PR\n  \
+        sepia pr --attach --repo owner/name --pr 12  # upload manually, then paste the URL\n  \
+        sepia pr --grab --repo owner/name --pr 12    # grab a URL already saved in the PR body\n  \
         sepia completions fish > ~/.config/fish/completions/sepia.fish\n\n\
         More examples live in the examples/ directory."
 )]
@@ -102,8 +103,8 @@ struct PrArgs {
     /// Output root used to locate latest.json.
     #[arg(long)]
     output_root: Option<PathBuf>,
-    /// Open a file window with the demo to drag into the PR editor, then prompt
-    /// for the resulting GitHub user-attachments URL.
+    /// Reveal the demo to drag into the PR editor, then prompt for the resulting
+    /// GitHub user-attachments URL.
     #[arg(long)]
     attach: bool,
     /// Read the PR description, find the user-attachments URL you already dropped

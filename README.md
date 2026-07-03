@@ -63,7 +63,13 @@ GitHub shows uploaded videos inline when they use a `github.com/user-attachments
 sepia pr --attach --repo OWNER/REPO --pr 123
 ```
 
-This copies the latest `demo.mp4` path, opens the PR page, asks you for the uploaded GitHub video URL, and updates the PR description with a Sepia block.
+This reveals the latest `demo.mp4` in your file manager, opens the PR page when `--repo` and `--pr` are supplied, asks you for the uploaded GitHub video URL, and updates the PR description with a Sepia block.
+
+Prefer fewer prompts? Drag `demo.mp4` into the PR description yourself, save the PR, then let Sepia find that fresh GitHub attachment URL and wrap it in the Sepia block:
+
+```bash
+sepia pr --grab --repo OWNER/REPO --pr 123
+```
 
 Already have the uploaded URL?
 
@@ -157,6 +163,11 @@ session = "basilisk-demo"
 output_fps = 24
 default_hold_ms = 700
 default_action_ms = 400
+show_step_labels = true
+
+[browser]
+width = 1440
+height = 1000
 
 [[steps]]
 name = "Initial packages page"
@@ -166,6 +177,7 @@ screenshot = true
 
 [[steps]]
 name = "Scroll package list"
+wait_for = { selector = ".package-list" }
 scroll = { selector = ".package-list", pixels = 900 }
 duration_ms = 1600
 frames = 32
@@ -181,11 +193,14 @@ screenshot = true
 Supported step actions:
 
 - `wait_ms`: wait before capturing the state.
-- `fill`: fill an input matched by a selector.
+- `fill`: fill an input matched by a selector and show a visible focus cue.
 - `scroll`: scroll an element matched by a selector.
+- `click`: click an element matched by a selector and show a visible click cue.
 - `eval`: run JavaScript in the page.
 
-Each step should use at most one action. Use `hold_ms`, `duration_ms`, and `frames` when the viewer needs more time to see what happened. Sepia also rejects unknown TOML fields at runtime, so schema validation and `sepia run` agree on the allowed keys. Invalid scripts are reported with source spans that point at the problematic TOML.
+Sepia overlays each step name in the video by default so reviewers know what to notice; set `capture.show_step_labels = false` if you need a clean recording. Use `[browser]` to pin the viewport; Sepia defaults to `1440x1000` for deterministic recordings. Add `wait_for = { selector = "..." }` when a step depends on async UI. Sepia also implicitly waits for `fill`, `scroll`, and `click` targets before acting.
+
+Each step should use at most one action. Prefer `click` over an `eval` click when possible so viewers can see what was clicked. Use `hold_ms`, `duration_ms`, and `frames` when the viewer needs more time to see what happened. Sepia also rejects unknown TOML fields at runtime, so schema validation and `sepia run` agree on the allowed keys. Invalid scripts are reported with source spans that point at the problematic TOML.
 
 </details>
 

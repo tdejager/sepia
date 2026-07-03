@@ -1,6 +1,6 @@
 # Sepia plan
 
-Sepia is an agent-native PR demo capture tool. It records browser UI evidence as color-correct MP4 videos by driving browser actions, capturing PNG frames, and assembling a constant-frame-rate video. Generated artifacts stay outside source repos by default.
+Sepia is an agent-native PR demo capture tool. It records browser UI evidence as GitHub-friendly MP4 videos by driving browser actions, capturing PNG frames, and assembling a constant-frame-rate video. Generated artifacts stay outside source repos by default.
 
 ## Product principles
 
@@ -47,9 +47,9 @@ Sepia is an agent-native PR demo capture tool. It records browser UI evidence as
   - [x] `DryRunUploader`.
   - [x] `GitHubUserAttachmentsUploader`.
   - [x] `GitHubRepoContentsUploader` fallback.
-- [ ] `PrCommentStore` abstraction.
-  - [ ] Find existing Sepia marker comment.
-  - [ ] Update if present, create if missing.
+- [x] PR body block updater.
+  - [x] Find existing Sepia marker block.
+  - [x] Update if present, create at top if missing.
 
 ## Timeline granularity
 
@@ -80,6 +80,9 @@ screenshot = true
 - [x] Parse `demo.toml` into readable typed config.
 - [x] Create session under `~/Downloads/sepia/<timestamp-name>/`.
 - [x] Drive named `agent-browser` session.
+- [x] Pin the browser viewport before navigation.
+- [x] Wait for action selectors before fill, scroll, and click.
+- [x] Support `wait_for` step preconditions for async UI.
 - [x] Capture PNG frames with `agent-browser screenshot`.
 - [x] Capture key screenshots under `steps/`.
 - [x] Encode `demo.mp4` using ffmpeg CLI.
@@ -91,7 +94,7 @@ screenshot = true
 - [x] Generate static `inspect.html`.
 - [x] Show video at top.
 - [x] Show step list, screenshots, frame counts, paths, and config summary.
-- [x] Include a human feedback textarea/template.
+- [x] Include PR-ready next-step guidance instead of a feedback textarea.
 - [x] `sepia inspect` opens latest capture with platform opener.
 
 ## PR workflow
@@ -104,8 +107,9 @@ screenshot = true
 - [x] Resolve PR with `gh pr view` unless `--pr` is supplied.
 - [x] Get token from `GH_TOKEN`, `GITHUB_TOKEN`, or `gh auth token`.
 - [x] Support interactive GitHub attachment flow with `sepia pr --attach`.
-- [x] Copy latest MP4 path to the clipboard for manual GitHub upload.
+- [x] Reveal the latest MP4 for manual GitHub upload.
 - [x] Accept/persist a `https://github.com/user-attachments/assets/...` video URL.
+- [x] Grab a freshly dropped GitHub attachment URL from the PR body with `sepia pr --grab`.
 - [x] Upsert the marked Sepia block at the top of the PR description while preserving the previous description.
 
 ## Skill workflow
@@ -131,7 +135,7 @@ screenshot = true
 - [x] Integration test `sepia run` with fake `agent-browser` and fake `ffmpeg` on `PATH`.
 - [x] Integration test `sepia inspect` with fake opener.
 - [x] Integration test `sepia pr --dry-run` with no GitHub calls.
-- [ ] HTTP-mock PR create/update/upload behavior.
+- [ ] HTTP-mock PR body update/grab/upload behavior.
 - [x] `pixi run check` runs fmt, clippy, and tests.
 
 ## First acceptance target
@@ -143,6 +147,6 @@ sepia run examples/basilisk-windowed-browse.toml
 sepia inspect
 ```
 
-- [ ] Confirm the MP4 has accurate colors and readable scroll/action pacing.
+- [ ] Confirm the MP4 has readable scroll/action pacing and acceptable browser UI colors.
 - [x] Run `sepia pr --dry-run` and review generated markdown.
 - [ ] Run `sepia pr` only after human approval.

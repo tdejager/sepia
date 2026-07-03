@@ -45,6 +45,10 @@ pub enum ConfigValidationError {
     EmptyUrl,
     #[error("capture.output_fps must be greater than 0")]
     EmptyOutputFps,
+    #[error("browser.width must be greater than 0")]
+    EmptyViewportWidth,
+    #[error("browser.height must be greater than 0")]
+    EmptyViewportHeight,
     #[error("step name must not be empty")]
     EmptyStepName,
     #[error(
@@ -68,6 +72,8 @@ pub struct DemoConfig {
     #[serde(default)]
     pub capture: CaptureConfig,
     #[serde(default)]
+    pub browser: BrowserConfig,
+    #[serde(default)]
     pub steps: Vec<StepConfig>,
 }
 
@@ -81,6 +87,8 @@ pub struct CaptureConfig {
     pub default_hold_ms: u64,
     #[serde(default = "default_action_ms")]
     pub default_action_ms: u64,
+    #[serde(default = "default_show_step_labels")]
+    pub show_step_labels: bool,
 }
 
 impl Default for CaptureConfig {
@@ -89,6 +97,26 @@ impl Default for CaptureConfig {
             output_fps: default_output_fps(),
             default_hold_ms: default_hold_ms(),
             default_action_ms: default_action_ms(),
+            show_step_labels: default_show_step_labels(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+#[serde(deny_unknown_fields)]
+pub struct BrowserConfig {
+    #[serde(default = "default_viewport_width")]
+    pub width: u32,
+    #[serde(default = "default_viewport_height")]
+    pub height: u32,
+}
+
+impl Default for BrowserConfig {
+    fn default() -> Self {
+        Self {
+            width: default_viewport_width(),
+            height: default_viewport_height(),
         }
     }
 }
@@ -108,6 +136,8 @@ pub struct StepConfig {
     pub scroll: Option<ScrollConfig>,
     #[serde(default)]
     pub click: Option<ClickConfig>,
+    #[serde(default)]
+    pub wait_for: Option<WaitForConfig>,
     #[serde(default)]
     pub hold_ms: Option<u64>,
     #[serde(default)]
@@ -142,6 +172,13 @@ pub struct ClickConfig {
     /// Which match to click when the selector matches several (0-based). Omit for the first.
     #[serde(default)]
     pub index: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+#[serde(deny_unknown_fields)]
+pub struct WaitForConfig {
+    pub selector: String,
 }
 
 /// A step's action, classified once so every surface (labels, timeline planning,
@@ -228,6 +265,12 @@ impl DemoConfig {
         if self.capture.output_fps == 0 {
             return Err(ConfigValidationError::EmptyOutputFps);
         }
+        if self.browser.width == 0 {
+            return Err(ConfigValidationError::EmptyViewportWidth);
+        }
+        if self.browser.height == 0 {
+            return Err(ConfigValidationError::EmptyViewportHeight);
+        }
         for step in &self.steps {
             step.validate()?;
         }
@@ -302,6 +345,9 @@ impl<'de> TomlDeserialize<'de> for DemoConfig {
         let capture = table
             .optional::<CaptureConfig>("capture")
             .unwrap_or_default();
+        let browser = table
+            .optional::<BrowserConfig>("browser")
+            .unwrap_or_default();
         let steps = table
             .optional::<Vec<StepConfig>>("steps")
             .unwrap_or_default();
@@ -332,6 +378,7 @@ impl<'de> TomlDeserialize<'de> for DemoConfig {
             url: url.value,
             session,
             capture,
+            browser,
             steps,
         })
     }
@@ -343,6 +390,9 @@ impl<'de> TomlDeserialize<'de> for CaptureConfig {
         let output_fps = table.optional_s::<u32>("output_fps");
         let configured_default_hold_ms = table.optional::<u64>("default_hold_ms");
         let configured_default_action_ms = table.optional::<u64>("default_action_ms");
+        let show_step_labels = table
+            .optional::<bool>("show_step_labels")
+            .unwrap_or_else(default_show_step_labels);
         table.finalize(None)?;
 
         if let Some(output_fps) = &output_fps
@@ -357,6 +407,42 @@ impl<'de> TomlDeserialize<'de> for CaptureConfig {
             output_fps: output_fps.map_or_else(default_output_fps, |value| value.value),
             default_hold_ms: configured_default_hold_ms.unwrap_or_else(default_hold_ms),
             default_action_ms: configured_default_action_ms.unwrap_or_else(default_action_ms),
+            show_step_labels,
+        })
+    }
+}
+
+impl<'de> TomlDeserialize<'de> for BrowserConfig {
+    fn deserialize(value: &mut Value<'de>) -> Result<Self, DeserError> {
+        let mut table = TableHelper::new(value)?;
+        let width = table.optional_s::<u32>("width");
+        let height = table.optional_s::<u32>("height");
+        table.finalize(None)?;
+
+        let mut errors = Vec::new();
+        if let Some(width) = &width
+            && width.value == 0
+        {
+            errors.push(custom_error(
+                "browser.width must be greater than 0",
+                width.span,
+            ));
+        }
+        if let Some(height) = &height
+            && height.value == 0
+        {
+            errors.push(custom_error(
+                "browser.height must be greater than 0",
+                height.span,
+            ));
+        }
+        if !errors.is_empty() {
+            return Err(DeserError { errors });
+        }
+
+        Ok(Self {
+            width: width.map_or_else(default_viewport_width, |value| value.value),
+            height: height.map_or_else(default_viewport_height, |value| value.value),
         })
     }
 }
@@ -370,6 +456,7 @@ impl<'de> TomlDeserialize<'de> for StepConfig {
         let fill = table.optional_s::<FillConfig>("fill");
         let scroll = table.optional_s::<ScrollConfig>("scroll");
         let click = table.optional_s::<ClickConfig>("click");
+        let wait_for = table.optional_s::<WaitForConfig>("wait_for");
         let hold_ms = table.optional::<u64>("hold_ms");
         let duration_ms = table.optional::<u64>("duration_ms");
         let frames = table.optional_s::<u32>("frames");
@@ -420,6 +507,7 @@ impl<'de> TomlDeserialize<'de> for StepConfig {
             fill: fill.map(|value| value.value),
             scroll: scroll.map(|value| value.value),
             click: click.map(|value| value.value),
+            wait_for: wait_for.map(|value| value.value),
             hold_ms,
             duration_ms,
             frames: frames.map(|value| value.value),
@@ -458,6 +546,20 @@ impl<'de> TomlDeserialize<'de> for ScrollConfig {
                 .expect("required field errors are returned by TableHelper::finalize")
                 .value,
             pixels: pixels
+                .expect("required field errors are returned by TableHelper::finalize")
+                .value,
+        })
+    }
+}
+
+impl<'de> TomlDeserialize<'de> for WaitForConfig {
+    fn deserialize(value: &mut Value<'de>) -> Result<Self, DeserError> {
+        let mut table = TableHelper::new(value)?;
+        let selector = table.required_s::<String>("selector").ok();
+        table.finalize(None)?;
+
+        Ok(Self {
+            selector: selector
                 .expect("required field errors are returned by TableHelper::finalize")
                 .value,
         })
@@ -559,8 +661,8 @@ fn help_for_toml_errors(errors: &[TomlError]) -> Option<String> {
         )
     }) {
         Some(
-            "Allowed top-level keys are name, description, url, session, capture, and steps. \
-             Step actions are wait_ms, eval, fill, scroll, and click. Use at most one per step."
+            "Allowed top-level keys are name, description, url, session, capture, browser, and steps. \
+             Step actions are wait_ms, eval, fill, scroll, and click. Use at most one per step; wait_for is a precondition."
                 .to_owned(),
         )
     } else if errors.iter().any(|error| match &error.kind {
@@ -603,6 +705,18 @@ fn default_action_ms() -> u64 {
     400
 }
 
+fn default_show_step_labels() -> bool {
+    true
+}
+
+fn default_viewport_width() -> u32 {
+    1440
+}
+
+fn default_viewport_height() -> u32 {
+    1000
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -619,8 +733,13 @@ url = "http://localhost:3001"
 output_fps = 24
 default_hold_ms = 800
 
+[browser]
+width = 1280
+height = 900
+
 [[steps]]
 name = "Scroll packages"
+wait_for = { selector = ".package-list" }
 scroll = { selector = ".package-list", pixels = 900 }
 duration_ms = 1600
 frames = 32
@@ -632,6 +751,12 @@ screenshot = true
 
         config.validate().unwrap();
         assert_eq!(config.capture.output_fps, 24);
+        assert_eq!(config.browser.width, 1280);
+        assert_eq!(config.browser.height, 900);
+        assert_eq!(
+            config.steps[0].wait_for.as_ref().unwrap().selector,
+            ".package-list"
+        );
         assert_eq!(config.steps[0].frames, Some(32));
     }
 
@@ -678,6 +803,7 @@ eval = "console.log(1)"
             fill: None,
             scroll: None,
             click: None,
+            wait_for: None,
             hold_ms: None,
             duration_ms: None,
             frames: None,
@@ -740,6 +866,8 @@ eval = "console.log(1)"
         schema["properties"]["url"]["pattern"] = serde_json::json!(r"\S");
         schema["properties"]["session"]["description"] =
             serde_json::json!("Optional stable session name used for output directories.");
+        schema["properties"]["browser"]["description"] =
+            serde_json::json!("Browser settings used to make recordings deterministic.");
         schema["properties"]["steps"]["description"] =
             serde_json::json!("Ordered browser actions and captured moments.");
 
@@ -753,6 +881,18 @@ eval = "console.log(1)"
             serde_json::json!("Default hold after a step when hold_ms is omitted.");
         schema["$defs"]["CaptureConfig"]["properties"]["default_action_ms"]["description"] =
             serde_json::json!("Default animated action duration when duration_ms is omitted.");
+        schema["$defs"]["CaptureConfig"]["properties"]["show_step_labels"]["description"] = serde_json::json!(
+            "Whether to overlay each step name in the recorded video so reviewers know what to notice."
+        );
+
+        schema["$defs"]["BrowserConfig"]["description"] =
+            serde_json::json!("Browser viewport settings for deterministic captures.");
+        schema["$defs"]["BrowserConfig"]["properties"]["width"]["minimum"] = serde_json::json!(1);
+        schema["$defs"]["BrowserConfig"]["properties"]["width"]["description"] =
+            serde_json::json!("Viewport width in CSS pixels.");
+        schema["$defs"]["BrowserConfig"]["properties"]["height"]["minimum"] = serde_json::json!(1);
+        schema["$defs"]["BrowserConfig"]["properties"]["height"]["description"] =
+            serde_json::json!("Viewport height in CSS pixels.");
 
         let step = &mut schema["$defs"]["StepConfig"];
         step["description"] = serde_json::json!(
@@ -770,6 +910,9 @@ eval = "console.log(1)"
             serde_json::json!("Scroll an element matched by selector.");
         step["properties"]["click"]["description"] =
             serde_json::json!("Click an element matched by selector.");
+        step["properties"]["wait_for"]["description"] = serde_json::json!(
+            "Wait for a selector before running this step. Does not count as the step action."
+        );
         step["properties"]["hold_ms"]["description"] =
             serde_json::json!("Milliseconds to hold the resulting state for viewers.");
         step["properties"]["duration_ms"]["description"] =
@@ -816,5 +959,10 @@ eval = "console.log(1)"
             serde_json::json!("CSS selector for the element to scroll.");
         schema["$defs"]["ScrollConfig"]["properties"]["pixels"]["description"] =
             serde_json::json!("Vertical pixels to scroll. Negative values scroll upward.");
+
+        schema["$defs"]["WaitForConfig"]["description"] =
+            serde_json::json!("Selector precondition for a step.");
+        schema["$defs"]["WaitForConfig"]["properties"]["selector"]["description"] =
+            serde_json::json!("CSS selector to wait for before running the step.");
     }
 }

@@ -30,10 +30,10 @@ header{display:flex;align-items:center;gap:clamp(.5rem,2vw,2rem);padding:2.2rem 
 .badge{font-family:"Silkscreen",monospace;font-size:.6rem;letter-spacing:.5px;background:var(--paper-2);
     border:1.5px solid var(--line);border-radius:14px;padding:.35rem .7rem;color:var(--sepia-deep)}
 .badge b{color:var(--gb-faded-orange)}
-.layout{display:grid;gap:1.3rem;grid-template-areas:"watch" "journey" "paths" "note"}
-@media (min-width:1080px){.layout{grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);grid-template-areas:"watch journey" "paths note"}}
+.layout{display:grid;gap:1.3rem;grid-template-areas:"watch" "journey" "paths" "share"}
+@media (min-width:1080px){.layout{grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);grid-template-areas:"watch journey" "paths share"}}
 @media (min-width:1700px){body{font-size:19px}.layout{grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:1.8rem}}
-.watch{grid-area:watch}.journey{grid-area:journey}.paths-card{grid-area:paths}.note-card{grid-area:note}
+.watch{grid-area:watch}.journey{grid-area:journey}.paths-card{grid-area:paths}.share-card{grid-area:share}
 .card{background:var(--paper);border:2px solid var(--line);border-radius:22px;padding:1.4rem 1.5rem;
     box-shadow:0 12px 30px -18px var(--shadow);animation:pop .6s ease both;min-width:0}
 .title{font-family:"Gaegu","Comic Sans MS",cursive;font-weight:700;font-size:1.4rem;color:var(--sepia);
@@ -73,9 +73,9 @@ header{display:flex;align-items:center;gap:clamp(.5rem,2vw,2rem);padding:2.2rem 
 .paths{font-family:"Space Mono",ui-monospace,monospace;font-size:.78rem;color:var(--ink-soft);line-height:2;word-break:break-all}
 .paths b{color:var(--gb-faded-orange);font-family:"Silkscreen",monospace;font-size:.56rem;letter-spacing:.5px}
 .desc{font-style:italic;color:var(--ink-soft);margin:.2rem 0 .9rem}
-textarea{width:100%;min-height:6.5rem;background:var(--paper-2);border:2px solid var(--line);border-radius:16px;
-    padding:1rem;font-family:"Gaegu","Comic Sans MS",cursive;font-size:1.2rem;color:var(--ink);resize:vertical;line-height:1.4}
-textarea:focus{outline:2px solid var(--gb-yellow);border-color:transparent}
+.next{margin:.2rem 0 0;padding-left:1.3rem;color:var(--ink-soft)}
+.next li{margin:.35rem 0}
+.next code{font-family:"Space Mono",ui-monospace,monospace;font-size:.78em;color:var(--gb-faded-orange);background:var(--paper-2);border:1px solid var(--line);border-radius:6px;padding:.05rem .25rem}
 footer{text-align:center;margin-top:2.4rem;color:var(--faint);position:relative;z-index:1;font-style:italic}
 footer .h{color:var(--gb-red)}
 .pix{font-family:"Silkscreen",monospace;font-style:normal;font-size:.6rem;color:var(--sepia)}

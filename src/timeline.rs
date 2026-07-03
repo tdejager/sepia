@@ -21,6 +21,7 @@ pub struct TimelineSegment {
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "kebab-case")]
 pub enum SegmentKind {
+    Initial,
     Wait,
     Eval,
     Fill,
@@ -34,7 +35,14 @@ pub struct TimelineCompiler;
 impl TimelineCompiler {
     #[must_use]
     pub fn compile(config: &DemoConfig) -> TimelinePlan {
-        let mut segments = Vec::new();
+        let mut segments = vec![TimelineSegment {
+            step_name: "Initial page".to_string(),
+            kind: SegmentKind::Initial,
+            duration_ms: 0,
+            frames_to_capture: 1,
+            hold_frames: 0,
+            key_screenshot: false,
+        }];
         for step in &config.steps {
             segments.extend(Self::compile_step(config, step));
         }
@@ -78,7 +86,10 @@ impl TimelineCompiler {
                 ),
                 SegmentKind::Fill => (FILL_CUE_MS + action_ms, cue_frames(FILL_CUE_MS, fps) + 1),
                 SegmentKind::Click => (CLICK_CUE_MS + action_ms, cue_frames(CLICK_CUE_MS, fps) + 1),
-                SegmentKind::Wait | SegmentKind::Eval | SegmentKind::Hold => (action_ms, 1),
+                SegmentKind::Wait
+                | SegmentKind::Eval
+                | SegmentKind::Initial
+                | SegmentKind::Hold => (action_ms, 1),
             };
 
             segments.push(TimelineSegment {
@@ -149,6 +160,7 @@ pub struct PlanPhase {
     pub kind: SegmentKind,
     pub frames: u32,
     pub secs: f64,
+    pub duration_ms: u64,
 }
 
 /// Group a compiled plan into per-step nodes with their phases.
@@ -156,15 +168,25 @@ pub struct PlanPhase {
 pub fn plan_tree(config: &DemoConfig, plan: &TimelinePlan) -> PlanTree {
     let fps = plan.output_fps.max(1);
 
+    let initial_frames: u32 = plan
+        .segments
+        .iter()
+        .filter(|segment| matches!(segment.kind, SegmentKind::Initial))
+        .map(segment_frames)
+        .sum();
     let mut groups: Vec<(&str, Vec<&TimelineSegment>)> = Vec::new();
-    for segment in &plan.segments {
+    for segment in plan
+        .segments
+        .iter()
+        .filter(|segment| !matches!(segment.kind, SegmentKind::Initial))
+    {
         match groups.last_mut() {
             Some(group) if group.0 == segment.step_name => group.1.push(segment),
             _ => groups.push((segment.step_name.as_str(), vec![segment])),
         }
     }
 
-    let mut elapsed = 0u32;
+    let mut elapsed = initial_frames;
     let mut steps = Vec::new();
     for (name, segments) in groups {
         let kind = segments
@@ -183,6 +205,7 @@ pub fn plan_tree(config: &DemoConfig, plan: &TimelinePlan) -> PlanTree {
                 kind: segment.kind,
                 frames: f,
                 secs: f64::from(f) / f64::from(fps),
+                duration_ms: segment.duration_ms,
             });
         }
         steps.push(PlanStep {
@@ -194,7 +217,7 @@ pub fn plan_tree(config: &DemoConfig, plan: &TimelinePlan) -> PlanTree {
         });
     }
 
-    let total_frames = steps.iter().map(|s| s.frames).sum();
+    let total_frames = initial_frames + steps.iter().map(|s| s.frames).sum::<u32>();
     PlanTree {
         name: config.name.clone(),
         fps,
@@ -212,7 +235,7 @@ impl SegmentKind {
             SegmentKind::Fill => StepKind::Fill,
             SegmentKind::Scroll => StepKind::Scroll,
             SegmentKind::Click => StepKind::Click,
-            SegmentKind::Hold => return None,
+            SegmentKind::Initial | SegmentKind::Hold => return None,
         })
     }
 }
@@ -220,12 +243,20 @@ impl SegmentKind {
 /// Colour used for each segment in the plan tree — action colours come from
 /// [`StepKind`]; holds get a neutral brown.
 pub(crate) fn kind_rgb(kind: &SegmentKind) -> (u8, u8, u8) {
-    kind.as_step_kind().map_or((146, 131, 116), StepKind::rgb)
+    match kind {
+        SegmentKind::Initial => (104, 157, 106),
+        SegmentKind::Hold => (146, 131, 116),
+        _ => kind.as_step_kind().map_or((146, 131, 116), StepKind::rgb),
+    }
 }
 
 /// A one-word label for the segment, used in the plan tree.
 pub(crate) fn kind_word(kind: &SegmentKind) -> &'static str {
-    kind.as_step_kind().map_or("hold", StepKind::label)
+    match kind {
+        SegmentKind::Initial => "initial",
+        SegmentKind::Hold => "hold",
+        _ => kind.as_step_kind().map_or("hold", StepKind::label),
+    }
 }
 
 impl std::fmt::Display for SegmentKind {
@@ -238,6 +269,24 @@ impl std::fmt::Display for SegmentKind {
 pub(crate) fn frames_label(frames: u32) -> String {
     let unit = if frames == 1 { "frame" } else { "frames" };
     format!("{frames} {unit}")
+}
+
+/// Human detail for one plan phase. Waits are wall-clock preconditions followed
+/// by a single captured frame, so show the wait duration instead of pretending
+/// the video contains a zero-second wait animation.
+pub(crate) fn phase_detail(kind: &SegmentKind, frames: u32, secs: f64, duration_ms: u64) -> String {
+    if matches!(kind, SegmentKind::Wait) {
+        if duration_ms == 0 {
+            format!("capture {}", frames_label(frames))
+        } else {
+            format!(
+                "wait {duration_ms}ms, then capture {}",
+                frames_label(frames)
+            )
+        }
+    } else {
+        format!("{} · {secs:.1}s", frames_label(frames))
+    }
 }
 
 /// The frames a single segment contributes to the video.
@@ -263,9 +312,20 @@ pub fn render_plan_tree(
     let fps = plan.output_fps.max(1);
     let secs = |frames: u32| f64::from(frames) / f64::from(fps);
 
-    // Group consecutive segments that belong to the same step.
+    let initial_frames: u32 = plan
+        .segments
+        .iter()
+        .filter(|segment| matches!(segment.kind, SegmentKind::Initial))
+        .map(segment_frames)
+        .sum();
+
+    // Group consecutive segments that belong to the same script step.
     let mut groups: Vec<(&str, Vec<&TimelineSegment>)> = Vec::new();
-    for segment in &plan.segments {
+    for segment in plan
+        .segments
+        .iter()
+        .filter(|segment| !matches!(segment.kind, SegmentKind::Initial))
+    {
         match groups.last_mut() {
             Some(group) if group.0 == segment.step_name => group.1.push(segment),
             _ => groups.push((segment.step_name.as_str(), vec![segment])),
@@ -291,7 +351,15 @@ pub fn render_plan_tree(
         .if_supports_color(stream, |t| t.dimmed())
     ));
 
-    let mut elapsed_frames = 0u32;
+    if initial_frames > 0 {
+        out.push_str(&format!(
+            "{}\n\n",
+            format!("initial page frame · {}", frames_label(initial_frames))
+                .if_supports_color(stream, |t| t.dimmed())
+        ));
+    }
+
+    let mut elapsed_frames = initial_frames;
     for (gi, (name, segments)) in groups.iter().enumerate() {
         let last_group = gi + 1 == groups.len();
         let branch = if last_group { "└─" } else { "├─" };
@@ -326,7 +394,7 @@ pub fn render_plan_tree(
                 "{child_stem} {twig} {}  {}\n",
                 format!("{:<7}", kind_word(&segment.kind))
                     .if_supports_color(stream, |t| t.truecolor(srgb.0, srgb.1, srgb.2)),
-                format!("{} · {:.1}s", frames_label(frames), secs(frames))
+                phase_detail(&segment.kind, frames, secs(frames), segment.duration_ms)
                     .if_supports_color(stream, |t| t.dimmed()),
             ));
             elapsed_frames += frames;
@@ -354,7 +422,7 @@ pub fn render_timeline_markdown(plan: &TimelinePlan) -> String {
 
 #[cfg(test)]
 mod tests {
-    use crate::config::{CaptureConfig, DemoConfig, ScrollConfig, StepConfig};
+    use crate::config::{BrowserConfig, CaptureConfig, DemoConfig, ScrollConfig, StepConfig};
 
     use super::*;
 
@@ -373,6 +441,7 @@ mod tests {
             url: "http://localhost".into(),
             session: None,
             capture: CaptureConfig::default(),
+            browser: BrowserConfig::default(),
             steps: vec![StepConfig {
                 name: "Scroll packages".into(),
                 wait_ms: None,
@@ -383,6 +452,7 @@ mod tests {
                     pixels: 900,
                 }),
                 click: None,
+                wait_for: None,
                 hold_ms: Some(500),
                 duration_ms: Some(1600),
                 frames: Some(32),
@@ -391,9 +461,42 @@ mod tests {
         };
 
         let plan = TimelineCompiler::compile(&config);
-        assert_eq!(plan.segments[0].kind, SegmentKind::Scroll);
-        assert_eq!(plan.segments[0].frames_to_capture, 32);
-        assert_eq!(plan.segments[1].kind, SegmentKind::Hold);
+        assert_eq!(plan.segments[0].kind, SegmentKind::Initial);
+        assert_eq!(plan.segments[0].frames_to_capture, 1);
+        assert_eq!(plan.segments[1].kind, SegmentKind::Scroll);
+        assert_eq!(plan.segments[1].frames_to_capture, 32);
+        assert_eq!(plan.segments[2].kind, SegmentKind::Hold);
+    }
+
+    #[test]
+    fn wait_phase_describes_wall_clock_wait_before_capture() {
+        let config = DemoConfig {
+            name: "Wait demo".into(),
+            description: None,
+            url: "http://localhost".into(),
+            session: None,
+            capture: CaptureConfig::default(),
+            browser: BrowserConfig::default(),
+            steps: vec![StepConfig {
+                name: "Let it load".into(),
+                wait_ms: Some(1200),
+                eval: None,
+                fill: None,
+                scroll: None,
+                click: None,
+                wait_for: None,
+                hold_ms: Some(0),
+                duration_ms: None,
+                frames: None,
+                screenshot: false,
+            }],
+        };
+
+        let plan = TimelineCompiler::compile(&config);
+        let tree = render_plan_tree(&config, &plan, owo_colors::Stream::Stdout);
+
+        assert!(tree.contains("wait 1200ms, then capture 1 frame"));
+        assert!(!tree.contains("wait     1 frame · 0.0s"));
     }
 
     #[test]
@@ -404,6 +507,7 @@ mod tests {
             url: "http://localhost".into(),
             session: None,
             capture: CaptureConfig::default(),
+            browser: BrowserConfig::default(),
             steps: vec![StepConfig {
                 name: "Scroll it".into(),
                 wait_ms: None,
@@ -414,6 +518,7 @@ mod tests {
                     pixels: 400,
                 }),
                 click: None,
+                wait_for: None,
                 hold_ms: Some(500),
                 duration_ms: Some(1000),
                 frames: Some(1),
@@ -424,6 +529,7 @@ mod tests {
         let plan = TimelineCompiler::compile(&config);
         let tree = render_plan_tree(&config, &plan, owo_colors::Stream::Stdout);
         assert!(tree.contains("Tree demo"));
+        assert!(tree.contains("initial page frame"));
         assert!(tree.contains("Scroll it"));
         assert!(tree.contains("scroll"));
         assert!(tree.contains("hold"));

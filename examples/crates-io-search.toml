@@ -16,6 +16,10 @@ output_fps = 24
 default_hold_ms = 700
 default_action_ms = 400
 
+[browser]
+width = 1440
+height = 1000
+
 [[steps]]
 name = "Home page loads"
 wait_ms = 1600
@@ -24,6 +28,7 @@ screenshot = true
 
 [[steps]]
 name = "Type a crate name"
+wait_for = { selector = "input[name=q]" }
 fill = { selector = "input[name=q]", text = "tokio" }
 hold_ms = 1100
 screenshot = true
@@ -37,6 +42,7 @@ screenshot = true
 
 [[steps]]
 name = "Scroll the results"
+wait_for = { selector = "a[href^=\"/crates/\"]" }
 scroll = { selector = "html", pixels = 500 }
 duration_ms = 1200
 frames = 24

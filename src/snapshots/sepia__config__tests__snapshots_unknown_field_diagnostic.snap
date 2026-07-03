@@ -1,5 +1,6 @@
 ---
 source: src/config.rs
+assertion_line: 764
 expression: render_config_error(&err)
 ---
 sepia::config::invalid
@@ -11,5 +12,6 @@ sepia::config::invalid
    : ^^|^^
    :   `-- unexpected key `click`
    `----
-  help: Allowed top-level keys are name, description, url, session, capture, and steps. Step
-        actions are wait_ms, eval, fill, scroll, and click. Use at most one per step.
+  help: Allowed top-level keys are name, description, url, session, capture, browser, and steps.
+        Step actions are wait_ms, eval, fill, scroll, and click. Use at most one per step;
+        wait_for is a precondition.
