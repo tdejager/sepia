@@ -16,8 +16,8 @@ Sepia is an agent-native PR demo capture tool. It records browser UI evidence as
 - [x] `sepia run demo.toml` captures a scripted browser demo.
 - [x] `sepia inspect` opens the latest capture.
 - [x] `sepia inspect <session-dir>` opens a specific capture.
-- [x] `sepia pr --dry-run` generates PR markdown without network writes.
-- [x] `sepia pr --attach` updates a marked block at the top of the PR description.
+- [x] `sepia pr --dry-run` generates local PR markdown without invoking `gh` or requiring credentials.
+- [x] `sepia pr [--repo OWNER/REPO] [--pr N] [--output-root DIR]` publishes the latest recording after human approval.
 - [x] `sepia skill install` installs the bundled skill globally using the Rust `skill` crate.
 - [x] `sepia skill list` lists installed skills.
 - [x] `sepia skill remove` removes the bundled skill.
@@ -43,10 +43,10 @@ Sepia is an agent-native PR demo capture tool. It records browser UI evidence as
 - [x] `TimelineCompiler` abstraction.
   - [x] Compile human config steps into explicit frame plans.
   - [x] Allow per-step granularity, duration, holds, and explicit frame counts.
-- [x] `ArtifactUploader` abstraction.
-  - [x] `DryRunUploader`.
-  - [x] `GitHubUserAttachmentsUploader`.
-  - [x] `GitHubRepoContentsUploader` fallback.
+- [x] Native GitHub CLI attachments with `gh` 2.99.0 or newer.
+  - [x] Delegate authentication and video uploads to `gh`.
+  - [x] Render a local MP4 reference for native rewriting during publication.
+  - [x] Propagate failures without retry or fallback, warning about possible partial changes.
 - [x] PR body block updater.
   - [x] Find existing Sepia marker block.
   - [x] Update if present, create at top if missing.
@@ -94,7 +94,7 @@ screenshot = true
 - [x] Generate static `inspect.html`.
 - [x] Show video at top.
 - [x] Show step list, screenshots, frame counts, paths, and config summary.
-- [x] Include PR-ready next-step guidance instead of a feedback textarea.
+- [x] Include one copyable `sepia pr` command, gated by human approval.
 - [x] `sepia inspect` opens latest capture with platform opener.
 
 ## PR workflow
@@ -104,12 +104,11 @@ screenshot = true
 - [x] Use stable hidden markers:
   - `<!-- sepia:pr-demo:start -->`
   - `<!-- sepia:pr-demo:end -->`
-- [x] Resolve PR with `gh pr view` unless `--pr` is supplied.
-- [x] Get token from `GH_TOKEN`, `GITHUB_TOKEN`, or `gh auth token`.
-- [x] Support interactive GitHub attachment flow with `sepia pr --attach`.
-- [x] Reveal the latest MP4 for manual GitHub upload.
-- [x] Accept/persist a `https://github.com/user-attachments/assets/...` video URL.
-- [x] Grab a freshly dropped GitHub attachment URL from the PR body with `sepia pr --grab`.
+- [x] Resolve the target PR with `gh pr view`, using explicit repo/PR arguments when supplied.
+- [x] Require GitHub CLI 2.99.0 or newer, normal `gh` OAuth/PAT authentication, and repository write/push access.
+- [x] Publish the latest recording through native GitHub CLI attachments.
+- [x] Keep dry-runs local-only, requiring neither `gh` nor credentials.
+- [x] Report authentication, unsupported CI credentials, and upload failures directly; inspect the PR before retrying a possibly partial update.
 - [x] Upsert the marked Sepia block at the top of the PR description while preserving the previous description.
 
 ## Skill workflow
@@ -130,12 +129,10 @@ screenshot = true
 - [x] Unit test ffmpeg argument generation.
 - [x] Unit test inspect HTML rendering.
 - [x] Unit test PR markdown rendering and marker detection.
-- [x] Unit test upload content-type detection.
 - [x] Unit test skill install target selection.
 - [x] Integration test `sepia run` with fake `agent-browser` and fake `ffmpeg` on `PATH`.
 - [x] Integration test `sepia inspect` with fake opener.
 - [x] Integration test `sepia pr --dry-run` with no GitHub calls.
-- [ ] HTTP-mock PR body update/grab/upload behavior.
 - [x] `pixi run check` runs fmt, clippy, and tests.
 
 ## First acceptance target

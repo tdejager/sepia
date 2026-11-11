@@ -44,7 +44,7 @@ The app is already running at <URL>. Show the main user-facing change from this 
 If the video looks good:
 
 ```text
-The Sepia video looks good. Update PR <NUMBER> in <OWNER/REPO> with it. Use the interactive attach flow if you need me to upload the MP4 to GitHub first.
+The Sepia video looks good. Publish it to PR <NUMBER> in <OWNER/REPO> with `sepia pr --repo OWNER/REPO --pr NUMBER`.
 ```
 
 Agents can install the bundled Sepia skill with:
@@ -57,33 +57,25 @@ Agent-facing rules live in [`skills/sepia/SKILL.md`](skills/sepia/SKILL.md).
 
 ## Add the video to a PR
 
-GitHub shows uploaded videos inline when they use a `github.com/user-attachments/assets/...` URL. Sepia helps with that flow:
+After reviewing and approving the video, publish the latest recording:
 
 ```bash
-sepia pr --attach --repo OWNER/REPO --pr 123
+sepia pr --repo OWNER/REPO --pr 123
 ```
 
-This reveals the latest `demo.mp4` in your file manager, opens the PR page when `--repo` and `--pr` are supplied, asks you for the uploaded GitHub video URL, and updates the PR description with a Sepia block.
+Sepia uploads the MP4 using native GitHub CLI attachments and places its marked block at the top of the PR description. It replaces an existing Sepia block while preserving the rest of the description.
 
-Prefer fewer prompts? Drag `demo.mp4` into the PR description yourself, save the PR, then let Sepia find that fresh GitHub attachment URL and wrap it in the Sepia block:
+Publishing requires GitHub CLI 2.99.0 or newer, normal `gh` authentication with an OAuth token or PAT, and repository write/push access. If `--repo` or `--pr` are omitted, `gh` resolves the PR from the current directory. Use `--output-root DIR` to select another recording output root.
+
+Preview the local markdown without invoking `gh` or contacting GitHub:
 
 ```bash
-sepia pr --grab --repo OWNER/REPO --pr 123
+sepia pr --dry-run
 ```
 
-Already have the uploaded URL?
+The dry-run needs only the latest recording, with no PR arguments or credentials.
 
-```bash
-sepia pr --repo OWNER/REPO --pr 123 --video-url https://github.com/user-attachments/assets/...
-```
-
-Preview the markdown without changing GitHub:
-
-```bash
-sepia pr --dry-run --video-url https://github.com/user-attachments/assets/...
-```
-
-If `--repo` or `--pr` are omitted, Sepia tries to read them from the current directory using the GitHub CLI. Authentication uses `GH_TOKEN`, `GITHUB_TOKEN`, or `gh auth token`.
+Authentication, unsupported CI credentials, and upload errors are reported directly without a fallback. An error may occur after an upload or PR update; inspect the PR before retrying.
 
 <details>
 <summary>Run Sepia manually</summary>

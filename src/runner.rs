@@ -12,7 +12,7 @@ use crate::{
     encoder::VideoEncoder,
     inspect::write_inspect_html,
     metadata::{SessionMetadata, SessionScreenshot, SessionStep, write_session_metadata},
-    pr::{pr_data_from_metadata, render_pr_comment},
+    pr::render_pr_block,
     progress::ProgressReporter,
     session::{SessionPaths, slugify, write_latest},
     timeline::{
@@ -138,9 +138,11 @@ where
         SessionMetadata::from_capture(config, &paths, created_at, frame_count, screenshots, steps);
     // The inspect page embeds the PR block, so the comment file must exist
     // before the page is rendered.
+    let video =
+        std::path::absolute(&metadata.video).context("failed to resolve recording path")?;
     fs::write(
         &paths.pr_comment_md,
-        render_pr_comment(&pr_data_from_metadata(&metadata, None, &[])),
+        render_pr_block(&metadata, &video),
     )
     .with_context(|| format!("failed to write {}", paths.pr_comment_md.display()))?;
     write_inspect_html(&paths, &metadata)?;

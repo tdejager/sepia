@@ -126,7 +126,7 @@ pub fn render_inspect_html(
         ),
     );
 
-    // Collapsed preview of the exact markdown `sepia pr` will put on the PR.
+    // Collapsed preview of the local markdown; publishing rewrites the video reference.
     let pr_block_html = pr_block
         .map(|block| {
             format!(
@@ -209,11 +209,10 @@ pub fn render_inspect_html(
       <ol class="next">
         <li>Watch the recording and jump through the steps.</li>
         <li>If it needs changes, tell the agent what to adjust and rerun.</li>
-        <li>If it looks good, attach <code>demo.mp4</code> to the PR:</li>
+        <li>Once the human approves the video, publish it to the PR:</li>
       </ol>
       <div class="cmds">
-        <div class="cmdrow"><code id="cmd-attach">sepia pr --attach</code><button class="copy" type="button" data-copy="cmd-attach">copy</button></div>
-        <div class="cmdrow"><code id="cmd-grab">sepia pr --grab</code><button class="copy" type="button" data-copy="cmd-grab">copy</button></div>
+        <div class="cmdrow"><code id="cmd-pr">sepia pr</code><button class="copy" type="button" data-copy="cmd-pr">copy</button></div>
       </div>
       {pr_block_html}
     </div>
@@ -338,8 +337,6 @@ mod tests {
         let paths = SessionPaths::from_root(PathBuf::from("/tmp/sepia/demo"));
         let html = render_inspect_html(&paths, &sample_metadata(), None);
         assert!(html.contains("<video"));
-        assert!(html.contains("Ready for PR"));
-        assert!(!html.contains("Changes needed:"));
     }
 
     #[test]
@@ -364,7 +361,7 @@ mod tests {
     }
 
     #[test]
-    fn exposes_player_controls_and_copy_targets() {
+    fn exposes_player_controls() {
         let paths = SessionPaths::from_root(PathBuf::from("/tmp/sepia/demo"));
         let html = render_inspect_html(&paths, &sample_metadata(), None);
         for id in [
@@ -375,10 +372,8 @@ mod tests {
         ] {
             assert!(html.contains(id), "missing {id}");
         }
-        assert!(html.contains("data-copy=\"path-session\""));
-        assert!(html.contains("data-copy=\"cmd-attach\""));
         // No PR block on disk means no embedded preview.
-        assert!(!html.contains("Peek at the PR block"));
+        assert!(!html.contains("<details class=\"prblock\">"));
     }
 
     #[test]
@@ -386,7 +381,6 @@ mod tests {
         let paths = SessionPaths::from_root(PathBuf::from("/tmp/sepia/demo"));
         let block = "<!-- sepia:pr-demo:start -->\n## Sepia Demo\n<!-- sepia:pr-demo:end -->\n";
         let html = render_inspect_html(&paths, &sample_metadata(), Some(block));
-        assert!(html.contains("Peek at the PR block"));
         assert!(html.contains("&lt;!-- sepia:pr-demo:start --&gt;"));
         // Raw HTML comments from the block must not survive unescaped.
         assert!(!html.contains("<!-- sepia:pr-demo:start -->"));
