@@ -115,10 +115,12 @@ impl Recording for ScreencastRecording {
         for _ in 0..frames {
             match self.written.recv_timeout(FRAME_TIMEOUT) {
                 Ok(()) => on_frame(),
-                Err(RecvTimeoutError::Timeout) => bail!(
-                    "the screencast stalled: no frame was written for {}s",
-                    FRAME_TIMEOUT.as_secs()
-                ),
+                Err(RecvTimeoutError::Timeout) => {
+                    bail!(
+                        "the screencast stalled: no frame was written for {}s",
+                        FRAME_TIMEOUT.as_secs()
+                    );
+                }
                 Err(RecvTimeoutError::Disconnected) => return Err(self.recorder_error()),
             }
         }
@@ -279,7 +281,7 @@ impl Recorder {
             Ok(Message::Text(text)) => self.handle(text.as_str()),
             Ok(Message::Close(_))
             | Err(tungstenite::Error::ConnectionClosed | tungstenite::Error::AlreadyClosed) => {
-                bail!("the browser closed the screencast connection")
+                bail!("the browser closed the screencast connection");
             }
             Ok(_) => Ok(()),
             Err(tungstenite::Error::Io(err))
