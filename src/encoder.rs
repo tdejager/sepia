@@ -45,20 +45,25 @@ impl FfmpegCliEncoder {
             "-i".into(),
             frames_dir.join("frame-%06d.png").display().to_string(),
             "-vf".into(),
-            "pad=ceil(iw/2)*2:ceil(ih/2)*2".into(),
+            // Tag the frames as sRGB (BT.709 primaries, sRGB transfer). ffmpeg 8
+            // and 9 take these two tags from the frames and drop the encoder
+            // options below; without the sRGB transfer tag, Chrome and
+            // QuickTime lift the midtones (#808080 plays back as #8b8b8b).
+            "pad=ceil(iw/2)*2:ceil(ih/2)*2,setparams=color_primaries=bt709:color_trc=iec61966-2-1"
+                .into(),
             "-c:v".into(),
             "libx264".into(),
             "-crf".into(),
             self.crf.to_string(),
             "-pix_fmt".into(),
             "yuv420p".into(),
-            // Browser screenshots arrive as RGB PNGs, while GitHub-friendly H.264
-            // MP4s are YUV. Keep the compatible pixel format, but explicitly
-            // signal BT.709 video metadata so players do not have to guess.
+            // Screencast frames are RGB PNGs, while GitHub-friendly H.264 MP4s
+            // are YUV. `-colorspace` and `-color_range` pick the BT.709 limited
+            // range conversion and signal it, so players do not have to guess.
             "-color_primaries".into(),
             "bt709".into(),
             "-color_trc".into(),
-            "bt709".into(),
+            "iec61966-2-1".into(),
             "-colorspace".into(),
             "bt709".into(),
             "-color_range".into(),

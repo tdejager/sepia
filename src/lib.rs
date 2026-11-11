@@ -60,6 +60,7 @@ pub mod pr;
 pub mod preflight;
 pub mod progress;
 pub mod runner;
+pub mod screencast;
 pub mod session;
 pub mod skill_installer;
 pub mod timeline;

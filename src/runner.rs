@@ -7,7 +7,7 @@ use chrono::Local;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    browser::BrowserBackend,
+    browser::{BrowserBackend, Recording},
     config::{DemoConfig, StepConfig},
     encoder::VideoEncoder,
     inspect::write_inspect_html,
@@ -16,8 +16,8 @@ use crate::{
     progress::ProgressReporter,
     session::{SessionPaths, slugify, write_latest},
     timeline::{
-        CLICK_CUE_MS, FILL_CUE_MS, TimelineCompiler, cue_frames, frames_for_duration,
-        render_timeline_markdown,
+        CLICK_CUE_MS, FILL_CUE_MS, TimelineCompiler, action_frames, cue_frames,
+        frames_for_duration, render_timeline_markdown,
     },
 };
 
@@ -56,7 +56,6 @@ where
     write_latest(output_root, paths.root.clone())?;
     let plan = TimelineCompiler::compile(config);
     let mut screenshots = Vec::new();
-    let mut capture = FrameCapture::new(&paths, progress);
 
     progress.started(&config.name, config.steps.len(), config.capture.output_fps);
     browser
@@ -69,9 +68,11 @@ where
         })?;
     progress.opening(&config.url);
     browser.open(&config.url)?;
-    capture
-        .capture_frame(browser)
-        .context("failed to capture initial frame")?;
+    let recording = browser
+        .start_recording(&paths, config.capture.output_fps)
+        .context("failed to start recording the browser")?;
+    let mut capture = FrameCapture::new(recording, progress);
+    capture.roll(1).context("failed to capture initial frame")?;
 
     let mut steps = Vec::new();
     let total_steps = config.steps.len();
@@ -112,6 +113,8 @@ where
             screenshot,
         });
     }
+    // Every frame is on disk; stop the screencast before the slower bookkeeping.
+    let frame_count = capture.finish();
 
     let timeline_json =
         serde_json::to_string_pretty(&plan).context("failed to encode timeline JSON")?;
@@ -124,14 +127,13 @@ where
         render_summary(
             config,
             &CaptureReport {
-                frame_count: capture.frame_count(),
+                frame_count,
                 video: paths.video.clone(),
                 inspect: paths.inspect_html.clone(),
             },
         ),
     )
     .with_context(|| format!("failed to write {}", paths.summary_md.display()))?;
-    let frame_count = capture.frame_count();
     let metadata =
         SessionMetadata::from_capture(config, &paths, created_at, frame_count, screenshots, steps);
     // The inspect page embeds the PR block, so the comment file must exist
@@ -157,8 +159,6 @@ where
         .encode(&paths.frames_dir, &paths.video, config.capture.output_fps)
         .context("failed to encode Sepia video")?;
 
-    drop(capture);
-
     progress.finished(frame_count, metadata.duration_seconds());
     Ok(RunOutput { paths, frame_count })
 }
@@ -182,38 +182,33 @@ where
     show_step_label(browser, config, step_number, total_steps, step);
 
     if let Some(wait_ms) = step.wait_ms {
+        // A wait is a pause in the script, not footage: it stays off camera.
         sleep_ms(wait_ms);
         show_step_label(browser, config, step_number, total_steps, step);
-        capture.capture_frame(browser)?;
+        capture.roll(1)?;
     } else if let Some(js) = &step.eval {
         browser.eval(js)?;
-        sleep_ms(step.action_ms(&config.capture));
-        show_step_label(browser, config, step_number, total_steps, step);
-        capture.capture_frame(browser)?;
+        roll_action(step_number, total_steps, step, config, capture, browser)?;
     } else if let Some(fill) = &step.fill {
         browser
             .wait_for_selector(&fill.selector)
             .with_context(|| format!("timed out waiting for fill target `{}`", fill.selector))?;
         // Ring the input so viewers see where the text lands, then fill it.
         browser.eval(&fill_cue_js(&fill.selector))?;
-        capture.capture_over(browser, FILL_CUE_MS, config.capture.output_fps)?;
+        capture.roll(cue_frames(FILL_CUE_MS, config.capture.output_fps))?;
         browser.fill(&fill.selector, &fill.text)?;
-        sleep_ms(step.action_ms(&config.capture));
-        show_step_label(browser, config, step_number, total_steps, step);
-        capture.capture_frame(browser)?;
+        roll_action(step_number, total_steps, step, config, capture, browser)?;
     } else if let Some(click) = &step.click {
         browser
             .wait_for_selector(&click.selector)
             .with_context(|| format!("timed out waiting for click target `{}`", click.selector))?;
-        // Pulse a ripple at the target and capture a few frames of it, so the
-        // click is visible in the video, then fire the (fire-and-forget) click.
+        // Pulse a ripple at the target and record it, so the click is visible
+        // in the video, then fire the (fire-and-forget) click.
         let index = click.index.unwrap_or(0);
         browser.eval(&click_cue_js(&click.selector, index))?;
-        capture.capture_over(browser, CLICK_CUE_MS, config.capture.output_fps)?;
+        capture.roll(cue_frames(CLICK_CUE_MS, config.capture.output_fps))?;
         browser.eval(&click_js(&click.selector, index))?;
-        sleep_ms(step.action_ms(&config.capture));
-        show_step_label(browser, config, step_number, total_steps, step);
-        capture.capture_frame(browser)?;
+        roll_action(step_number, total_steps, step, config, capture, browser)?;
     } else if let Some(scroll) = &step.scroll {
         browser
             .wait_for_selector(&scroll.selector)
@@ -225,25 +220,48 @@ where
             .frames
             .unwrap_or_else(|| frames_for_duration(duration_ms, config.capture.output_fps).max(2));
         let per_frame_pixels = scroll.pixels as f64 / f64::from(frames);
-        let per_frame_wait = if frames == 0 {
-            0
-        } else {
-            duration_ms / u64::from(frames)
-        }
-        .min(100);
 
+        // One scroll increment per video frame.
         for _ in 0..frames {
             browser.eval(&scroll_js(&scroll.selector, per_frame_pixels))?;
-            sleep_ms(per_frame_wait);
-            capture.capture_frame(browser)?;
+            capture.roll(1)?;
         }
     } else {
         show_step_label(browser, config, step_number, total_steps, step);
-        capture.capture_frame(browser)?;
+        capture.roll(1)?;
     }
 
     let hold_frames = frames_for_duration(step.hold_ms(&config.capture), config.capture.output_fps);
-    capture.duplicate_last_frame(hold_frames)?;
+    capture.roll(hold_frames)?;
+    Ok(())
+}
+
+/// How often the step label is redrawn while an action's footage rolls.
+const LABEL_REFRESH_MS: u64 = 250;
+
+/// Record the footage of a step's action. The action may navigate, which wipes
+/// the step label, so redraw it between short rolls; the redraw happens off
+/// camera and costs no video time.
+fn roll_action<B>(
+    step_number: usize,
+    total_steps: usize,
+    step: &StepConfig,
+    config: &DemoConfig,
+    capture: &mut FrameCapture<'_>,
+    browser: &B,
+) -> Result<()>
+where
+    B: BrowserBackend,
+{
+    let fps = config.capture.output_fps;
+    let refresh_frames = frames_for_duration(LABEL_REFRESH_MS, fps).max(1);
+    let mut remaining = action_frames(step.action_ms(&config.capture), fps);
+    while remaining > 0 {
+        let frames = remaining.min(refresh_frames);
+        capture.roll(frames)?;
+        remaining -= frames;
+        show_step_label(browser, config, step_number, total_steps, step);
+    }
     Ok(())
 }
 
@@ -403,72 +421,40 @@ fn sleep_ms(ms: u64) {
     }
 }
 
+/// The live recording plus the runner's frame bookkeeping.
 struct FrameCapture<'a> {
-    paths: &'a SessionPaths,
+    recording: Box<dyn Recording>,
     progress: &'a dyn ProgressReporter,
+    /// 1-based index of the next video frame.
     next_frame: u32,
-    last_frame: Option<PathBuf>,
 }
 
 impl<'a> FrameCapture<'a> {
-    fn new(paths: &'a SessionPaths, progress: &'a dyn ProgressReporter) -> Self {
+    fn new(recording: Box<dyn Recording>, progress: &'a dyn ProgressReporter) -> Self {
         Self {
-            paths,
+            recording,
             progress,
             next_frame: 1,
-            last_frame: None,
         }
     }
 
-    fn capture_frame<B>(&mut self, browser: &B) -> Result<PathBuf>
-    where
-        B: BrowserBackend,
-    {
-        let path = self.paths.frame_path(self.next_frame);
-        browser.screenshot(&path)?;
-        self.next_frame += 1;
-        self.last_frame = Some(path.clone());
-        self.progress.tick();
-        Ok(path)
+    /// Record `frames` frames of live footage, which takes `frames / fps`
+    /// seconds. Anything between rolls stays off camera.
+    fn roll(&mut self, frames: u32) -> Result<()> {
+        let Self {
+            recording,
+            progress,
+            next_frame,
+        } = self;
+        recording.roll(frames, &mut || {
+            *next_frame += 1;
+            progress.tick();
+        })
     }
 
-    fn duplicate_last_frame(&mut self, count: u32) -> Result<()> {
-        let Some(last_frame) = self.last_frame.clone() else {
-            return Ok(());
-        };
-        for _ in 0..count {
-            let path = self.paths.frame_path(self.next_frame);
-            fs::copy(&last_frame, &path).with_context(|| {
-                format!(
-                    "failed to duplicate hold frame from {} to {}",
-                    last_frame.display(),
-                    path.display()
-                )
-            })?;
-            self.next_frame += 1;
-            self.last_frame = Some(path);
-            self.progress.tick();
-        }
-        Ok(())
-    }
-
-    fn frame_count(&self) -> u32 {
+    /// Stop recording and return the number of frames captured.
+    fn finish(self) -> u32 {
         self.next_frame.saturating_sub(1)
-    }
-
-    /// Capture frames spread across `ms` milliseconds — used to record a cue
-    /// (a click ripple or fill ring) animating before the action fires.
-    fn capture_over<B>(&mut self, browser: &B, ms: u64, fps: u32) -> Result<()>
-    where
-        B: BrowserBackend,
-    {
-        let frames = cue_frames(ms, fps);
-        let per_frame = ms / u64::from(frames);
-        for _ in 0..frames {
-            sleep_ms(per_frame);
-            self.capture_frame(browser)?;
-        }
-        Ok(())
     }
 }
 
@@ -493,6 +479,7 @@ mod tests {
     use crate::{
         config::{BrowserConfig, CaptureConfig, FillConfig},
         encoder::VideoEncoder,
+        timeline::plan_tree,
     };
 
     use super::*;
@@ -500,6 +487,18 @@ mod tests {
     #[derive(Default)]
     struct FakeBrowser {
         calls: RefCell<Vec<String>>,
+    }
+
+    /// Hands out every requested frame at once: no browser, no real time.
+    struct FakeRecording;
+
+    impl Recording for FakeRecording {
+        fn roll(&mut self, frames: u32, on_frame: &mut dyn FnMut()) -> Result<()> {
+            for _ in 0..frames {
+                on_frame();
+            }
+            Ok(())
+        }
     }
 
     impl BrowserBackend for FakeBrowser {
@@ -526,6 +525,11 @@ mod tests {
                 .push(format!("screenshot {}", path.display()));
             fs::write(path, b"fake png").context("failed to write fake screenshot")?;
             Ok(())
+        }
+
+        fn start_recording(&self, _paths: &SessionPaths, _fps: u32) -> Result<Box<dyn Recording>> {
+            self.calls.borrow_mut().push("start recording".into());
+            Ok(Box::new(FakeRecording))
         }
 
         fn set_viewport(&self, width: u32, height: u32) -> Result<()> {
@@ -600,7 +604,10 @@ mod tests {
         assert!(run.paths.inspect_html.exists());
         assert!(run.paths.timeline_json.exists());
         assert!(run.paths.pr_comment_md.exists());
-        assert!(run.frame_count >= 3);
+        // The plan drives the `--plan` preview and the live progress tree, so
+        // it has to predict exactly what a run records.
+        let plan = plan_tree(&config, &TimelineCompiler::compile(&config));
+        assert_eq!(run.frame_count, plan.total_frames);
         assert!(
             browser
                 .calls
