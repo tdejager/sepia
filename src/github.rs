@@ -26,10 +26,9 @@ pub fn get_pull_request(repo: Option<&str>, number: Option<u64>) -> Result<PullR
     if let Some(repo) = repo {
         command.args(["--repo", repo]);
     }
-    let output = command
-        .args(["--json", "url,body"])
-        .output()
-        .context("failed to run `gh pr view`; install GitHub CLI and authenticate with `gh auth login`")?;
+    let output = command.args(["--json", "url,body"]).output().context(
+        "failed to run `gh pr view`; install GitHub CLI and authenticate with `gh auth login`",
+    )?;
     if !output.status.success() {
         bail!(
             "`gh pr view` failed ({}): {}\nPass --repo OWNER/REPO and --pr NUMBER, or run from a branch with a pull request.",
@@ -49,8 +48,8 @@ pub fn get_pull_request(repo: Option<&str>, number: Option<u64>) -> Result<PullR
 /// Native gh may upload or update the PR before failing; callers must not retry automatically.
 pub fn attach_recording(pr_url: &str, body: &str, video: &Path) -> Result<()> {
     // A body file avoids a piped-stdin writer racing the child's stderr or exit.
-    let mut body_file = tempfile::NamedTempFile::new()
-        .context("failed to create temporary PR description file")?;
+    let mut body_file =
+        tempfile::NamedTempFile::new().context("failed to create temporary PR description file")?;
     body_file
         .write_all(body.as_bytes())
         .context("failed to write temporary PR description file")?;
