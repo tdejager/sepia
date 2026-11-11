@@ -75,21 +75,26 @@ impl TimelineCompiler {
                 .duration_ms
                 .or(step.wait_ms)
                 .unwrap_or(config.capture.default_action_ms);
-            // Match what `runner::execute_step` actually captures: fill and click
-            // record a cue animation (see FILL_CUE_MS / CLICK_CUE_MS) plus one
-            // final frame; only scroll honours an explicit `frames`.
+            // Match what `runner::execute_step` records: fill and click roll a
+            // cue animation (see FILL_CUE_MS / CLICK_CUE_MS) and then, like
+            // eval, the action's own footage. A wait happens off camera and
+            // contributes one frame; only scroll honours an explicit `frames`.
             let (duration_ms, frames_to_capture) = match kind {
                 SegmentKind::Scroll => (
                     action_ms,
                     step.frames
                         .unwrap_or_else(|| frames_for_duration(action_ms, fps).max(2)),
                 ),
-                SegmentKind::Fill => (FILL_CUE_MS + action_ms, cue_frames(FILL_CUE_MS, fps) + 1),
-                SegmentKind::Click => (CLICK_CUE_MS + action_ms, cue_frames(CLICK_CUE_MS, fps) + 1),
-                SegmentKind::Wait
-                | SegmentKind::Eval
-                | SegmentKind::Initial
-                | SegmentKind::Hold => (action_ms, 1),
+                SegmentKind::Fill => (
+                    FILL_CUE_MS + action_ms,
+                    cue_frames(FILL_CUE_MS, fps) + action_frames(action_ms, fps),
+                ),
+                SegmentKind::Click => (
+                    CLICK_CUE_MS + action_ms,
+                    cue_frames(CLICK_CUE_MS, fps) + action_frames(action_ms, fps),
+                ),
+                SegmentKind::Eval => (action_ms, action_frames(action_ms, fps)),
+                SegmentKind::Wait | SegmentKind::Initial | SegmentKind::Hold => (action_ms, 1),
             };
 
             segments.push(TimelineSegment {
@@ -126,16 +131,22 @@ pub fn frames_for_duration(duration_ms: u64, fps: u32) -> u32 {
     ((duration_ms * u64::from(fps)).div_ceil(1000)) as u32
 }
 
-/// Milliseconds of cue animation captured before a fill / click action fires.
+/// Milliseconds of cue animation recorded before a fill / click action fires.
 /// Shared with `runner` so the plan and the actual capture agree.
 pub(crate) const FILL_CUE_MS: u64 = 300;
 pub(crate) const CLICK_CUE_MS: u64 = 600;
 
-/// Frames captured while a fill/click cue animates (mirrors
-/// `runner::FrameCapture::capture_over`).
+/// Frames recorded while a fill/click cue animates.
 #[must_use]
 pub(crate) fn cue_frames(ms: u64, fps: u32) -> u32 {
     frames_for_duration(ms, fps).max(3)
+}
+
+/// Frames of footage recorded after an eval / fill / click fires: its
+/// `duration_ms`, and at least one frame so the result is always on camera.
+#[must_use]
+pub(crate) fn action_frames(ms: u64, fps: u32) -> u32 {
+    frames_for_duration(ms, fps).max(1)
 }
 
 /// A step grouped into its capture phases, shared by the static `--plan` tree
