@@ -1,6 +1,6 @@
 ---
 name: sepia
-description: Capture browser change videos as GitHub-friendly MP4s for PR evidence without committing binary assets. Use when an agent needs to script browser interactions, preview and run a capture plan, inspect the result, iterate with the human, and update a PR with a GitHub attachment video URL.
+description: Capture browser change videos for PR evidence without committing binary assets. Use when scripting browser interactions, reviewing recordings with the human, or publishing an approved recording to a GitHub PR.
 ---
 
 # Sepia
@@ -41,25 +41,23 @@ Use Sepia when you need browser-based PR evidence as a video.
    ```
 
 6. Iterate on the script until the human accepts the result.
-7. For a PR dry-run after the human has a GitHub attachment URL, run:
+7. Preview the latest recording's PR block locally if needed:
 
    ```bash
-   sepia pr --dry-run --video-url https://github.com/user-attachments/assets/...
+   sepia pr --dry-run
    ```
 
-8. After approval, update the PR description inline with one of these flows:
+   This needs only the latest recording: it does not invoke `gh`, require credentials, or contact GitHub.
+
+8. After human approval, publish the latest recording and update the PR description:
 
    ```bash
-   sepia pr --attach --repo OWNER/REPO --pr NUMBER
+   sepia pr --repo OWNER/REPO --pr NUMBER
    ```
 
-   `--attach` reveals `demo.mp4`, opens the PR page when repo and PR are known, asks the human to upload the file through GitHub's web UI, then uses the pasted `user-attachments` URL in the PR description.
+   Publishing requires GitHub CLI 2.99.0 or newer, normal `gh` authentication with an OAuth token or PAT, and repository write/push access. Sepia uses native GitHub CLI attachments and replaces its marked block at the top of the PR description while preserving the rest. Omitted repo/PR arguments use `gh`'s current-directory context; use `--output-root DIR` to select another recording output root.
 
-   ```bash
-   sepia pr --grab --repo OWNER/REPO --pr NUMBER
-   ```
-
-   `--grab` is useful when the human already dragged `demo.mp4` into the PR description and saved it. Sepia reads the PR description, finds the fresh `user-attachments` URL, removes the raw URL line, and wraps the video in the Sepia block. Non-dry-run PR updates require a `https://github.com/user-attachments/assets/...` video URL.
+   Authentication, unsupported CI credentials, and upload errors propagate without a fallback. An error can occur after an upload or PR update: inspect the PR before deciding whether to retry.
 
 ## Config guidance
 

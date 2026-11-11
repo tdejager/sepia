@@ -147,7 +147,6 @@ exit 42
     assert!(session.join("pr-comment.md").exists());
     assert!(pr_output.contains("<!-- sepia:pr-demo:start -->"));
     assert!(pr_output.contains("Integrated CLI smoke test"));
-    assert!(pr_output.contains(&format!("file://{}", session.join("demo.mp4").display())));
 
     let log = wait_for_log_contains(&log, opener_name());
     assert!(log.contains("agent-browser --session integrated-session open http://localhost:3456"));
