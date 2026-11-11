@@ -24,6 +24,7 @@ terminal_size = "0.4"
 thiserror = "2.0"
 tokio = { version = "1.43", features = ["macros", "rt-multi-thread", "time"] }
 toml-span = "0.7"
+tungstenite = "0.30"
 which = "7.0"
 
 [dev-dependencies]

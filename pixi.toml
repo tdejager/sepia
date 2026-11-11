@@ -10,7 +10,9 @@ ffmpeg = "*"
 # so an unpinned solve installs the ABI-incompatible 0.12 and ffmpeg fails to
 # load. Drop this pin once conda-forge rebuilds ffmpeg against libjxl 0.12.
 libjxl = "0.11.*"
-agent-browser = "*"
+# Sepia records the DevTools target that `agent-browser tab list --json`
+# reports for the active tab; 0.31 did not report one, 0.39.1 does.
+agent-browser = ">=0.39.1"
 
 [tasks]
 build = "cargo build"
@@ -39,4 +41,5 @@ channels = ["https://prefix.dev/conda-forge"]
 ffmpeg = "*"
 # Same libjxl ABI guard as above; remove when conda-forge ffmpeg is rebuilt.
 libjxl = "0.11.*"
-agent-browser = "*"
+# Same DevTools target requirement as above.
+agent-browser = ">=0.39.1"

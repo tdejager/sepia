@@ -1,5 +1,6 @@
 use std::{
     fs,
+    net::{TcpListener, TcpStream},
     os::unix::fs::PermissionsExt,
     path::Path,
     thread,
@@ -7,7 +8,9 @@ use std::{
 };
 
 use assert_cmd::Command;
+use base64::{Engine, engine::general_purpose::STANDARD};
 use tempfile::tempdir;
+use tungstenite::Message;
 
 #[test]
 fn cli_run_uses_fake_agent_browser_and_ffmpeg() {
@@ -32,6 +35,7 @@ fn cli_run_uses_fake_agent_browser_and_ffmpeg() {
         ])
         .env("PATH", fake_path)
         .env("SEPIA_FAKE_LOG", &log)
+        .env("SEPIA_FAKE_CDP_URL", spawn_fake_devtools())
         .assert()
         .success();
 
@@ -110,6 +114,7 @@ exit 42
         ])
         .env("PATH", &fake_path)
         .env("SEPIA_FAKE_LOG", &log)
+        .env("SEPIA_FAKE_CDP_URL", spawn_fake_devtools())
         .assert()
         .success();
 
@@ -145,6 +150,20 @@ exit 42
     assert!(session.join("demo.mp4").exists());
     assert!(session.join("inspect.html").exists());
     assert!(session.join("pr-comment.md").exists());
+
+    // The video is cut from the browser's screencast: every recorded frame is
+    // on disk, and later frames carry what the browser sent later.
+    let metadata = fs::read_to_string(session.join("session.json")).unwrap();
+    let metadata: serde_json::Value = serde_json::from_str(&metadata).unwrap();
+    let frame_count = metadata["frame_count"].as_u64().unwrap();
+    assert_eq!(
+        fs::read_dir(session.join("frames")).unwrap().count() as u64,
+        frame_count
+    );
+    let first_frame = fs::read(session.join("frames/frame-000001.png")).unwrap();
+    let last_frame = fs::read(session.join(format!("frames/frame-{frame_count:06}.png"))).unwrap();
+    assert!(first_frame.starts_with(b"fake png"));
+    assert_ne!(first_frame, last_frame, "the recording froze on one frame");
     assert!(pr_output.contains("<!-- sepia:pr-demo:start -->"));
     assert!(pr_output.contains("Integrated CLI smoke test"));
 
@@ -202,6 +221,7 @@ exit 1
         ])
         .env("PATH", fake_path_with(&bin_dir))
         .env("SEPIA_FAKE_LOG", &log)
+        .env("SEPIA_FAKE_CDP_URL", spawn_fake_devtools())
         .assert()
         .failure();
 
@@ -226,6 +246,16 @@ fn write_fake_agent_browser(path: &Path) {
         path,
         r#"#!/bin/sh
 echo "agent-browser $@" >> "$SEPIA_FAKE_LOG"
+case "$3 $4 $5" in
+  "get cdp-url "*)
+    echo "$SEPIA_FAKE_CDP_URL"
+    exit 0
+    ;;
+  "--json tab list")
+    echo '{"success":true,"data":{"tabs":[{"active":true,"targetId":"FAKE"}]}}'
+    exit 0
+    ;;
+esac
 previous=""
 for arg in "$@"; do
   if [ "$previous" = "screenshot" ]; then
@@ -238,6 +268,56 @@ done
 exit 0
 "#,
     );
+}
+
+/// Stand in for the browser's DevTools endpoint and return its `ws://` URL.
+/// Each connection answers the screencast commands and sends a new frame after
+/// the start command and after every acknowledgement, like Chrome does.
+fn spawn_fake_devtools() -> String {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let url = format!(
+        "ws://{}/devtools/browser/fake",
+        listener.local_addr().unwrap()
+    );
+    thread::spawn(move || {
+        for stream in listener.incoming().flatten() {
+            thread::spawn(move || serve_fake_screencast(stream));
+        }
+    });
+    url
+}
+
+fn serve_fake_screencast(stream: TcpStream) {
+    let Ok(mut socket) = tungstenite::accept(stream) else {
+        return;
+    };
+    let mut frames_sent = 0;
+    while let Ok(message) = socket.read() {
+        let Message::Text(text) = message else {
+            continue;
+        };
+        let command: serde_json::Value = serde_json::from_str(text.as_str()).unwrap();
+        let reply = serde_json::json!({ "id": command["id"], "result": {} });
+        if socket.send(Message::text(reply.to_string())).is_err() {
+            return;
+        }
+        if matches!(
+            command["method"].as_str(),
+            Some("Page.startScreencast" | "Page.screencastFrameAck")
+        ) {
+            frames_sent += 1;
+            let frame = serde_json::json!({
+                "method": "Page.screencastFrame",
+                "params": {
+                    "data": STANDARD.encode(format!("fake png {frames_sent}")),
+                    "sessionId": frames_sent,
+                },
+            });
+            if socket.send(Message::text(frame.to_string())).is_err() {
+                return;
+            }
+        }
+    }
 }
 
 fn write_fake_ffmpeg(path: &Path) {

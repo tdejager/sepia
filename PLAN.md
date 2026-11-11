@@ -57,7 +57,7 @@ Sepia is an agent-native PR demo capture tool. It records browser UI evidence as
 - [x] Let config choose `capture.output_fps`, defaulting to 24.
 - [x] Let ordinary actions use readable `hold_ms` defaults.
 - [x] Let animated actions, especially scrolls, set `duration_ms` and `frames`.
-- [x] Duplicate frames for holds rather than forcing unnecessary screenshots.
+- [x] Record holds as live footage, so animations keep playing on screen.
 - [x] Generate `timeline.json` and human-readable `timeline.md`.
 
 Example intent:
@@ -83,7 +83,7 @@ screenshot = true
 - [x] Pin the browser viewport before navigation.
 - [x] Wait for action selectors before fill, scroll, and click.
 - [x] Support `wait_for` step preconditions for async UI.
-- [x] Capture PNG frames with `agent-browser screenshot`.
+- [x] Record PNG frames from the browser's DevTools screencast, in real time at `output_fps`.
 - [x] Capture key screenshots under `steps/`.
 - [x] Encode `demo.mp4` using ffmpeg CLI.
 - [x] Write `latest.json` pointing at the most recent capture.
